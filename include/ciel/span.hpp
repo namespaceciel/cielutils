@@ -37,7 +37,7 @@ public:
     using reference        = T&;
     using const_reference  = const T&;
     using iterator         = wrap_iter<pointer>;
-    using reverse_iterator = reverse_iterator<iterator>;
+    using reverse_iterator = ciel::reverse_iterator<iterator>;
 
     static constexpr size_type extent = Extent;
 
@@ -160,7 +160,7 @@ public:
     using reference        = T&;
     using const_reference  = const T&;
     using iterator         = wrap_iter<pointer>;
-    using reverse_iterator = reverse_iterator<iterator>;
+    using reverse_iterator = ciel::reverse_iterator<iterator>;
 
     static constexpr size_type extent = dynamic_extent;
 

@@ -55,7 +55,7 @@ public:
     using iterator               = typename tree_type::iterator;
     using const_iterator         = typename tree_type::const_iterator;
 
-    using reverse_iterator       = reverse_iterator<iterator>;
+    using reverse_iterator       = ciel::reverse_iterator<iterator>;
     using const_reverse_iterator = ciel::reverse_iterator<const_iterator>;
 
 private:

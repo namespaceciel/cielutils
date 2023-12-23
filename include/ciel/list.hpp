@@ -146,7 +146,7 @@ public:
     using iterator               = list_iterator<value_type, pointer, reference>;
     using const_iterator         = list_iterator<value_type, const_pointer, const_reference>;
 
-    using reverse_iterator       = reverse_iterator<iterator>;
+    using reverse_iterator       = ciel::reverse_iterator<iterator>;
     using const_reverse_iterator = ciel::reverse_iterator<const_iterator>;;
 
 private:

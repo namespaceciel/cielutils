@@ -197,7 +197,7 @@ public:
     using const_iterator         = deque_iterator<value_type, const_pointer, const_reference,
                                     typename list<subarray_type, allocator_type>::iterator, SubarraySize>;
 
-    using reverse_iterator       = reverse_iterator<iterator>;
+    using reverse_iterator       = ciel::reverse_iterator<iterator>;
     using const_reverse_iterator = ciel::reverse_iterator<const_iterator>;
 
 private:
