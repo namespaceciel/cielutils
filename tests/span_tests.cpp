@@ -62,6 +62,8 @@ TEST(span_tests, constructors_of_fixed_span) {
     for (size_t i = 0; i < s6.size(); ++i) {
         ASSERT_EQ(s6[i], i);
     }
+
+    delete[] heap_arr;
 }
 
 TEST(span_tests, constructors_of_dynamic_span) {
@@ -125,6 +127,8 @@ TEST(span_tests, constructors_of_dynamic_span) {
     for (size_t i = 0; i < s8.size(); ++i) {
         ASSERT_EQ(s8[i], i);
     }
+
+    delete[] heap_arr;
 }
 
 TEST(span_tests, constructors_from_spans) {
