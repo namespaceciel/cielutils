@@ -3,6 +3,7 @@
 
 #include <ciel/config.hpp>
 #include <ciel/limits.hpp>
+#include <ciel/memory_impl/allocation_result.hpp>
 #include <ciel/memory_impl/construct_at.hpp>
 #include <ciel/memory_impl/destroy_at.hpp>
 #include <ciel/memory_impl/pointer_traits.hpp>
@@ -133,6 +134,13 @@ template<class Alloc, class SizeType, class ConstVoidPtr>
 struct has_allocate_hint<Alloc, SizeType, ConstVoidPtr,
     decltype((void)declval<Alloc>().allocate(declval<SizeType>(), declval<ConstVoidPtr>()))> : true_type {};
 
+template<class, class, class = void>
+struct has_allocate_at_least : false_type {};
+
+template<class Alloc, class SizeType>
+struct has_allocate_at_least<Alloc, SizeType,
+    decltype((void)declval<Alloc>().allocate_at_least(declval<SizeType>()))> : true_type {};
+
 template<class, class, class...>
 struct has_construct : false_type {};
 
@@ -191,22 +199,45 @@ struct allocator_traits {
     template<class U>
     using rebind_traits                          = allocator_traits<rebind_alloc<U>>;
 
-    [[nodiscard]] static constexpr auto allocate(allocator_type& a, size_type n) -> pointer {
+    [[nodiscard]] static constexpr auto allocate(allocator_type& a, const size_type n) -> pointer {
+        CIEL_PRECONDITION(n > 0);
+
         return a.allocate(n);
     }
 
-    [[nodiscard]] static constexpr auto allocate(allocator_type& a, size_type n, const_void_pointer hint) -> pointer
-        requires details::has_allocate_hint<allocator_type, size_type, const_void_pointer>::value {
+    [[nodiscard]] static constexpr auto allocate(allocator_type& a, const size_type n, const_void_pointer hint)
+        -> pointer requires details::has_allocate_hint<allocator_type, size_type, const_void_pointer>::value {
+        CIEL_PRECONDITION(n > 0);
+
         return a.allocate(n, hint);
     }
 
-    [[nodiscard]] static constexpr auto allocate(allocator_type& a, size_type n, const_void_pointer /*unused*/)
-        -> pointer
-        requires (!details::has_allocate_hint<allocator_type, size_type, const_void_pointer>::value)  {
+    [[nodiscard]] static constexpr auto allocate(allocator_type& a, const size_type n, const_void_pointer /*unused*/)
+        -> pointer requires (!details::has_allocate_hint<allocator_type, size_type, const_void_pointer>::value)  {
+        CIEL_PRECONDITION(n > 0);
+
         return a.allocate(n);
     }
 
-    static constexpr auto deallocate(allocator_type& a, pointer p, size_type n) -> void {
+    [[nodiscard]] static constexpr auto allocate_at_least(allocator_type& a, const size_type n)
+        -> allocation_result<pointer, size_type>
+            requires (details::has_allocate_at_least<allocator_type, size_type>::value) {
+        CIEL_PRECONDITION(n > 0);
+
+        return a.allocate_at_least(n);
+    }
+
+    [[nodiscard]] static constexpr auto allocate_at_least(allocator_type& a, const size_type n)
+        -> allocation_result<pointer, size_type>
+            requires (!details::has_allocate_at_least<allocator_type, size_type>::value) {
+        CIEL_PRECONDITION(n > 0);
+
+        return {a.allocate(n), n};
+    }
+
+    static constexpr auto deallocate(allocator_type& a, pointer p, const size_type n) -> void {
+        CIEL_PRECONDITION(n > 0);
+
         a.deallocate(p, n);
     }
 

@@ -195,13 +195,13 @@ private:
                     before_begin.base()->next_ = construct_place;
                     begin.base()->prev_ = construct_place;
                     ++before_begin;
-                } CIEL_CATCH(...) {
+                } CIEL_CATCH (...) {
                     node_alloc_traits::deallocate(allocator_, construct_place, 1);
                     CIEL_THROW;
                 }
             }
             return before_begin;
-        } CIEL_CATCH(...) {
+        } CIEL_CATCH (...) {
             alloc_range_destroy_and_deallocate(original_before_begin.next(), begin);
             CIEL_THROW;
         }
@@ -225,13 +225,13 @@ private:
                     before_begin.base()->next_ = construct_place;
                     begin.base()->prev_ = construct_place;
                     ++before_begin;
-                } CIEL_CATCH(...) {
+                } CIEL_CATCH (...) {
                     node_alloc_traits::deallocate(allocator_, construct_place, 1);
                     CIEL_THROW;
                 }
             }
             return before_begin;
-        } CIEL_CATCH(...) {
+        } CIEL_CATCH (...) {
             alloc_range_destroy_and_deallocate(original_before_begin.next(), begin);
             CIEL_THROW;
         }

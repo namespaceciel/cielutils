@@ -3,6 +3,7 @@
 
 #include <ciel/config.hpp>
 #include <ciel/limits.hpp>
+#include <ciel/memory_impl/allocation_result.hpp>
 #include <ciel/type_traits_impl/is_const.hpp>
 #include <ciel/type_traits_impl/is_constant_evaluated.hpp>
 #include <ciel/type_traits_impl/is_volatile.hpp>
@@ -35,6 +36,8 @@ public:
     constexpr ~allocator() = default;
 
     [[nodiscard]] constexpr auto allocate(const size_t n) -> T* {
+        CIEL_PRECONDITION(n > 0);
+
         if (numeric_limits<size_t>::max() / sizeof(T) < n) {
             THROW(std::bad_array_new_length());
         }
@@ -42,6 +45,12 @@ public:
             return static_cast<T*>(::operator new(sizeof(T) * n, static_cast<std::align_val_t>(alignof(T))));
         }
         return static_cast<T*>(::operator new(sizeof(T) * n));
+    }
+
+    [[nodiscard]] constexpr auto allocate_at_least(const size_t n) -> allocation_result<T*, size_t> {
+        CIEL_PRECONDITION(n > 0);
+
+        return {allocate(n), n};
     }
 
     constexpr auto deallocate(T* p, size_t /*unused*/) noexcept -> void {

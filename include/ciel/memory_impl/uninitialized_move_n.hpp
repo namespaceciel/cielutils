@@ -18,7 +18,7 @@ auto uninitialized_move_n(InputIt first, Size count, ForwardIt d_first) -> pair<
             ::new(const_cast<void *>(static_cast<const volatile void *>(ciel::addressof(*current)))) Value(
                     std::move(*first));
         }
-    } CIEL_CATCH(...) {
+    } CIEL_CATCH (...) {
         ciel::destroy(d_first, current);
         CIEL_THROW;
     }

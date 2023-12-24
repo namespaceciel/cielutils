@@ -62,7 +62,7 @@ public:
         func* res = alloc_traits::allocate(a, 1);
         CIEL_TRY {
             alloc_traits::construct(a, res, f_);
-        } CIEL_CATCH(...) {
+        } CIEL_CATCH (...) {
             alloc_traits::deallocate(a, res, 1);
             CIEL_THROW;
         }
@@ -178,7 +178,7 @@ public:
                 func_type* res = alloc_traits::allocate(a, 1);
                 CIEL_TRY {
                     alloc_traits::construct(a, res, std::move(f));
-                } CIEL_CATCH(...) {
+                } CIEL_CATCH (...) {
                     alloc_traits::deallocate(a, res, 1);
                     CIEL_THROW;
                 }

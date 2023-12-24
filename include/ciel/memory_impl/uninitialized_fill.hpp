@@ -15,7 +15,7 @@ auto uninitialized_fill(ForwardIt first, ForwardIt last, const T& value) -> void
         for (; current != last; ++current) {
             ::new(static_cast<void *>(ciel::addressof(*current))) V(value);
         }
-    } CIEL_CATCH(...) {
+    } CIEL_CATCH (...) {
         for (; first != current; ++first) {
             first->~V();
         }

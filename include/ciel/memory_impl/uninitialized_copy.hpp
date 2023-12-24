@@ -16,7 +16,7 @@ auto uninitialized_copy(InputIt first, InputIt last, NoThrowForwardIt d_first) -
             ::new(static_cast<void *>(ciel::addressof(*current))) T(*first);
         }
         return current;
-    } CIEL_CATCH(...) {
+    } CIEL_CATCH (...) {
         for (; d_first != current; ++d_first) {
             d_first->~T();
         }

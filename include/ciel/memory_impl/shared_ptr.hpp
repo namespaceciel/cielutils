@@ -169,7 +169,7 @@ private:
         CIEL_TRY {
             control_block_alloc_traits::construct(allocator, ctlblk, ptr, std::move(dlt), std::move(alloc));
             return ctlblk;
-        } CIEL_CATCH(...) {
+        } CIEL_CATCH (...) {
             control_block_alloc_traits::deallocate(allocator, ctlblk, 1);
             CIEL_THROW;
         }

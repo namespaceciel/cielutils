@@ -17,7 +17,7 @@ auto uninitialized_move(InputIt first, InputIt last, NoThrowForwardIt d_first) -
             ::new(static_cast<void *>(ciel::addressof(*current))) Value(std::move(*first));
         }
         return current;
-    } CIEL_CATCH(...) {
+    } CIEL_CATCH (...) {
         ciel::destroy(d_first, current);
         CIEL_THROW;
     }

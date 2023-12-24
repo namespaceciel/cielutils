@@ -139,32 +139,25 @@ TEST(vector_tests, insert_and_erase) {
     ciel::vector v1{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 
     v1.erase(v1.begin());
-    // 1, 2, 3, 4, 5, 6, 7, 8, 9
     ASSERT_EQ(v1, ciel::vector({1, 2, 3, 4, 5, 6, 7, 8, 9}));
 
     v1.erase(v1.begin() + 4, v1.begin() + 7);
-    // 1, 2, 3, 4, 8, 9
     ASSERT_EQ(v1, ciel::vector({1, 2, 3, 4, 8, 9}));
 
     v1.emplace(v1.begin(), 8);
-    // 8, 1, 2, 3, 4, 8, 9
     ASSERT_EQ(v1, ciel::vector({8, 1, 2, 3, 4, 8, 9}));
 
     v1.insert(v1.begin() + 1, {4, 3, 2});
-    // 8, 4, 3, 2, 1, 2, 3, 4, 8, 9
     ASSERT_EQ(v1, ciel::vector({8, 4, 3, 2, 1, 2, 3, 4, 8, 9}));
 
     ciel::vector v2{123, 543, 12};
     v1.insert(v1.end(), v2.begin(), v2.begin());    // empty range
-    // 8, 4, 3, 2, 1, 2, 3, 4, 8, 9
     ASSERT_EQ(v1, ciel::vector({8, 4, 3, 2, 1, 2, 3, 4, 8, 9}));
 
     v1.insert(v1.end() - 1, v2.begin() + 1, v2.end());
-    // 8, 4, 3, 2, 1, 2, 3, 4, 8, 543, 12, 9
     ASSERT_EQ(v1, ciel::vector({8, 4, 3, 2, 1, 2, 3, 4, 8, 543, 12, 9}));
 
     v1.insert(v1.begin() + 2, 3, 222);
-    // 8, 4, 222, 222, 222, 3, 2, 1, 2, 3, 4, 8, 543, 12, 9
     ASSERT_EQ(v1, ciel::vector({8, 4, 222, 222, 222, 3, 2, 1, 2, 3, 4, 8, 543, 12, 9}));
 
     ciel::vector<int> v3;

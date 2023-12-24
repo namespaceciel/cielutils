@@ -16,7 +16,7 @@ auto uninitialized_fill_n(ForwardIt first, Size count, const T& value) -> Forwar
             ::new(static_cast<void *>(ciel::addressof(*current))) V(value);
         }
         return current;
-    } CIEL_CATCH(...) {
+    } CIEL_CATCH (...) {
         for (; first != current; ++first) {
             first->~V();
         }

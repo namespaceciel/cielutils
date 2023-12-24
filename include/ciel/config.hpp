@@ -42,4 +42,7 @@ template<class Exception>
 
 NAMESPACE_CIEL_END
 
+#define CIEL_PRECONDITION(cond) assert(cond)
+#define CIEL_POSTCONDITION(cond) assert(cond)
+
 #endif // CIELUTILS_INCLUDE_CIEL_CONFIG_HPP_

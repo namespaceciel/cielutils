@@ -218,11 +218,12 @@ private:
         iterator end = begin;
         CIEL_TRY {
             for (size_type i = 0; i < n; ++i) {
-                alloc_traits::construct(allocator_, (end++).base(), std::forward<Arg>(arg)...);
+                alloc_traits::construct(allocator_, end.base(), std::forward<Arg>(arg)...);
+                ++end;
             }
             return end;
-        } CIEL_CATCH(...) {
-            alloc_range_destroy(begin, --end);
+        } CIEL_CATCH (...) {
+            alloc_range_destroy(begin, end);
             CIEL_THROW;
         }
     }
@@ -233,11 +234,12 @@ private:
         iterator end = begin;
         CIEL_TRY {
             while (first != last) {
-                alloc_traits::construct(allocator_, (end++).base(), *first++);
+                alloc_traits::construct(allocator_, end.base(), *first++);
+                ++end;
             }
             return end;
-        } CIEL_CATCH(...) {
-            alloc_range_destroy(begin, --end);
+        } CIEL_CATCH (...) {
+            alloc_range_destroy(begin, end);
             CIEL_THROW;
         }
     }
@@ -390,7 +392,7 @@ public:
                 emplace_back(*first);
                 ++first;
             }
-        } CIEL_CATCH(...) {
+        } CIEL_CATCH (...) {
             clear();
             CIEL_THROW;
         }

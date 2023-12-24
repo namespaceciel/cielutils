@@ -173,13 +173,13 @@ private:
                                                  std::forward<Arg>(arg)...);
                     begin.base()->next_ = construct_place;
                     ++begin;
-                } CIEL_CATCH(...) {
+                } CIEL_CATCH (...) {
                     node_alloc_traits::deallocate(allocator_, construct_place, 1);
                     CIEL_THROW;
                 }
             }
             return begin;
-        } CIEL_CATCH(...) {
+        } CIEL_CATCH (...) {
             alloc_range_destroy_and_deallocate(original_begin.next(), begin);
             CIEL_THROW;
         }
@@ -200,13 +200,13 @@ private:
                     ++first;
                     begin.base()->next_ = construct_place;
                     ++begin;
-                } CIEL_CATCH(...) {
+                } CIEL_CATCH (...) {
                     node_alloc_traits::deallocate(allocator_, construct_place, 1);
                     CIEL_THROW;
                 }
             }
             return begin;
-        } CIEL_CATCH(...) {
+        } CIEL_CATCH (...) {
             alloc_range_destroy_and_deallocate(original_begin.next(), begin);
             CIEL_THROW;
         }

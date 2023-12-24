@@ -330,7 +330,7 @@ struct large_handler {
         T* res = alloc_traits::allocate(a, 1);
         CIEL_TRY {
             alloc_traits::construct(a, res, std::forward<Args>(args)...);
-        } CIEL_CATCH(...) {
+        } CIEL_CATCH (...) {
             alloc_traits::deallocate(a, res, 1);
             CIEL_THROW;
         }

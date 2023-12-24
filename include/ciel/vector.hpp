@@ -20,6 +20,8 @@ NAMESPACE_CIEL_BEGIN
 
 // TODO: operator<=>
 
+// We don't provide specialization of vector for bool
+
 template<class T, class Allocator = allocator<T>>
 class vector {
 
@@ -50,6 +52,8 @@ private:
     [[no_unique_address]] allocator_type allocator_;
 
     constexpr auto alloc_range_destroy(pointer begin, pointer end) noexcept -> pointer {
+        CIEL_PRECONDITION(begin <= end);
+
         while (end != begin) {
             alloc_traits::destroy(allocator_, --end);
         }
@@ -61,11 +65,12 @@ private:
         pointer end = begin;
         CIEL_TRY {
             for (size_type i = 0; i < n; ++i) {
-                alloc_traits::construct(allocator_, end++, std::forward<Args>(args)...);
+                alloc_traits::construct(allocator_, end, std::forward<Args>(args)...);
+                ++end;
             }
             return end;
-        } CIEL_CATCH(...) {
-            alloc_range_destroy(begin, --end);
+        } CIEL_CATCH (...) {
+            alloc_range_destroy(begin, end);
             CIEL_THROW;
         }
     }
@@ -76,16 +81,19 @@ private:
         pointer end = begin;
         CIEL_TRY {
             while (first != last) {
-                alloc_traits::construct(allocator_, end++, *first++);
+                alloc_traits::construct(allocator_, end, *first++);
+                ++end;
             }
             return end;
-        } CIEL_CATCH(...) {
-            alloc_range_destroy(begin, --end);
+        } CIEL_CATCH (...) {
+            alloc_range_destroy(begin, end);
             CIEL_THROW;
         }
     }
 
     constexpr auto alloc_range_move(pointer begin, pointer first, pointer last) noexcept -> pointer {
+        CIEL_PRECONDITION(first <= last);
+
         pointer end = begin;
         while (first != last) {
             alloc_traits::construct(allocator_, end++, std::move(*first++));
@@ -103,6 +111,8 @@ private:
     //                   ----------  -------
     //                   move assign placement new
     constexpr auto alloc_range_nothrow_move_backward(pointer end, pointer first, pointer last) noexcept -> pointer {
+        CIEL_PRECONDITION(first <= last);
+        
         pointer begin = end;
         pointer boundary = last;
         while (first != last && begin != boundary) {
@@ -114,91 +124,123 @@ private:
         return end;
     }
 
-    // step1: only allocate new memory
-    [[nodiscard]] constexpr auto reserve_step1(const size_type new_cap) -> pointer {
+    [[nodiscard]] constexpr auto get_new_allocation(const size_type new_cap) -> allocation_result<pointer, size_type> {
+        CIEL_PRECONDITION(new_cap > 0);
+
         if (new_cap > max_size()) {
             THROW(std::length_error("ciel::vector reserving size is beyond max_size"));
         }
-        return alloc_traits::allocate(allocator_, new_cap);
+        return alloc_traits::allocate_at_least(allocator_, new_cap);
     }
 
-    // step2: move old elements, destroy old elements, deallocate old memory
-    constexpr auto reserve_step2(pointer new_start, const size_type new_cap)
+    // move old elements to new_start, destroy old elements, deallocate old memory, renew begin_, end_, end_cap_
+    //
+    // We need new_space_element in emplace_back. To support self assignment, we need to construct on new space first,
+    // then transfer old elements. If value_type is not nothrow move constructible, which is annoying,
+    // we need to destroy that one new element before we deallocate new allocation when catching an exception.
+    constexpr auto reserve_to(allocation_result<pointer, size_type> new_allocation, pointer new_space_element = nullptr)
         noexcept(is_nothrow_move_constructible_v<value_type>) -> void {
-        if constexpr (is_nothrow_move_constructible_v<value_type>) {    // strong exception safety
+        CIEL_PRECONDITION(new_allocation.count > 0);
+
+        pointer new_start = new_allocation.ptr;
+        const size_type new_cap = new_allocation.count;
+
+        // If T's move constructor is not noexcept and is not CopyInsertable into *this,
+        // vector will use the throwing move constructor.
+        if constexpr (is_nothrow_move_constructible_v<value_type> || !is_copy_constructible_v<value_type>) {
             alloc_range_move(new_start, begin_, end_);
         } else {
             CIEL_TRY {
                 alloc_range_construct(new_start, begin_, end_);
-            } CIEL_CATCH(...) {
+            } CIEL_CATCH (...) {
+                if (new_space_element) {
+                    alloc_traits::destroy(allocator_, new_space_element);
+                }
                 alloc_traits::deallocate(allocator_, new_start, new_cap);
                 CIEL_THROW;
             }
         }
+
         const size_type old_size = size();
-        clear();
-        alloc_traits::deallocate(allocator_, begin_, capacity());
+
+        if (begin_) {
+            clear();
+            alloc_traits::deallocate(allocator_, begin_, capacity());
+        }
+
         begin_ = new_start;
         end_ = begin_ + old_size;
         end_cap_ = begin_ + new_cap;
     }
 
-    // O  O  O  O
-    //          -  -
-    // insert two elements
-    //
-    // O  O  O  N  N  O
-    //          -  -
-    //          *  *  *
-    //          move assign
-    //             placement new
-    //                move construct
     template<class Arg>
     constexpr auto insert_n(iterator pos, const size_type count, Arg&& arg) -> iterator {
-        if (!count) {
+        if (count == 0) {
             return pos;
         }
-        // When it comes to expansion, we need to move construct two ranges divided by pos on new space,
-        // and construct new elements directly on that
+
+        // When it comes to expansion, we need to construct new elements directly on new space,
+        // if it throws then has no effect. And move construct two ranges divided by pos on new space
         if (const size_type new_size = size() + count; new_size > capacity()) {
             size_type new_cap = capacity() ? capacity() * 2 : 1;
             while (new_size > new_cap) {
                 new_cap *= 2;
             }
 
-            size_type idx = pos - begin();
+            const size_type idx = pos - begin();
             pointer new_start = alloc_traits::allocate(allocator_, new_cap);
             pointer new_pos = new_start + idx;
 
-            alloc_range_move(new_start, begin_, pos.base());
-            alloc_range_move(new_pos + count, pos.base(), end_);
+            CIEL_TRY {
+                alloc_range_construct_n(new_pos, count, std::forward<Arg>(arg));
+            } CIEL_CATCH (...) {
+                alloc_traits::deallocate(allocator_, new_start, new_cap);
+                CIEL_THROW;
+            }
 
-            clear();
-            alloc_traits::deallocate(allocator_, begin_, capacity());
+            if (begin_) {
+                alloc_range_move(new_start, begin_, pos.base());
+                alloc_range_move(new_pos + count, pos.base(), end_);
+
+                clear();
+                alloc_traits::deallocate(allocator_, begin_, capacity());
+            }
+
             begin_ = new_start;
             end_ = begin_ + new_size;
             end_cap_ = begin_ + new_cap;
-            return iterator(alloc_range_construct_n(new_pos, count, std::forward<Arg>(arg)) - 1);
+
+            return iterator(new_pos + count - 1);
         } else {
-            pointer boundary = end_;
-            end_ = alloc_range_nothrow_move_backward(end_ + count, pos.base(), end_);
-            const size_type left_movement = boundary - pos.base();
-            const size_type loop_break = left_movement < count ? left_movement : count;
-            for (size_type i = 0; i < loop_break; ++i) {    // assignments
-                *(pos++) = std::forward<Arg>(arg);
+            // When capacity is enough, we insert some elements in between, it will end up in two conditions:
+            // 1. number of insertion > distance(pos, end)
+            //      we can't move elements to right side first because if it throws,
+            //      it will end up with uninitialized memory in between.
+            //      So we construct them all at end and rotate them to the right place
+            // 2. <=, in this case we can move first
+
+            if (static_cast<size_type>(distance(pos, end())) < count) {
+                iterator old_end = end();
+                end_ = alloc_range_construct_n(end_, count, std::forward<Arg>(arg));
+                return rotate(pos, old_end, end()) - 1;
+
+            } else {
+                end_ = alloc_range_nothrow_move_backward(end_ + count, pos.base(), end_);
+                for (size_type i = 0; i < count; ++i) {    // assignments
+                    *(pos++) = std::forward<Arg>(arg);
+                }
+                return pos;
             }
-            if (left_movement < count) {    // After assignments, there are elements need to be constructed
-                pos = iterator(alloc_range_construct_n(boundary, count - left_movement, std::forward<Arg>(arg)) - 1);
-            }
-            return pos;
         }
     }
 
     constexpr auto clear_and_get_cap_no_less_than(const size_type size) -> void {
         clear();
         if (capacity() < size) {
-            alloc_traits::deallocate(allocator_, begin_, capacity());
-            begin_ = nullptr;    // Prevent exceptions throwing and double free in destructor when asking for memory
+            if (begin_) {
+                alloc_traits::deallocate(allocator_, begin_, capacity());
+                begin_ = nullptr;    // Prevent exceptions throwing and double free in destructor when asking for memory
+            }
             begin_ = alloc_traits::allocate(allocator_, size);
             end_cap_ = begin_ + size;
             end_ = begin_;
@@ -219,7 +261,7 @@ public:
             end_cap_ = begin_ + count;
             CIEL_TRY {
                 end_ = alloc_range_construct_n(begin_, count, value);
-            } CIEL_CATCH(...) {
+            } CIEL_CATCH (...) {
                 alloc_traits::deallocate(allocator_, begin_, capacity());
                 CIEL_THROW;
             }
@@ -233,7 +275,7 @@ public:
             end_cap_ = begin_ + count;
             CIEL_TRY {
                 end_ = alloc_range_construct_n(begin_, count);
-            } CIEL_CATCH(...) {
+            } CIEL_CATCH (...) {
                 alloc_traits::deallocate(allocator_, begin_, capacity());
                 CIEL_THROW;
             }
@@ -244,12 +286,12 @@ public:
         requires is_exactly_input_iterator<Iter>::value
     constexpr vector(Iter first, Iter last, const allocator_type& alloc = allocator_type())
         : vector(alloc) {
-            CIEL_TRY {
-                while (first != last) {
-                    emplace_back(*first);
-                    ++first;
-                }
-            } CIEL_CATCH(...) {
+        CIEL_TRY {
+            while (first != last) {
+                emplace_back(*first);
+                ++first;
+            }
+        } CIEL_CATCH (...) {
             clear();
             alloc_traits::deallocate(allocator_, begin_, capacity());
             CIEL_THROW;
@@ -265,7 +307,7 @@ public:
             end_cap_ = begin_ + count;
             CIEL_TRY {
                 end_ = alloc_range_construct(begin_, first, last);
-            } CIEL_CATCH(...) {
+            } CIEL_CATCH (...) {
                 alloc_traits::deallocate(allocator_, begin_, capacity());
                 CIEL_THROW;
             }
@@ -407,26 +449,38 @@ public:
     }
 
     [[nodiscard]] constexpr auto operator[](const size_type pos) -> reference {
+        CIEL_PRECONDITION(pos < size());
+
         return begin_[pos];
     }
 
     [[nodiscard]] constexpr auto operator[](const size_type pos) const -> const_reference {
+        CIEL_PRECONDITION(pos < size());
+
         return begin_[pos];
     }
 
     [[nodiscard]] constexpr auto front() -> reference {
+        CIEL_PRECONDITION(!empty());
+
         return begin_[0];
     }
 
     [[nodiscard]] constexpr auto front() const -> const_reference {
+        CIEL_PRECONDITION(!empty());
+
         return begin_[0];
     }
 
     [[nodiscard]] constexpr auto back() -> reference {
+        CIEL_PRECONDITION(!empty());
+
         return *(end_ - 1);
     }
 
     [[nodiscard]] constexpr auto back() const -> const_reference {
+        CIEL_PRECONDITION(!empty());
+
         return *(end_ - 1);
     }
 
@@ -487,7 +541,7 @@ public:
     }
 
     [[nodiscard]] constexpr auto empty() const noexcept -> bool {
-        return begin() == end();
+        return begin_ == end_;
     }
 
     [[nodiscard]] constexpr auto size() const noexcept -> size_type {
@@ -506,8 +560,8 @@ public:
         if (new_cap <= capacity()) {
             return;
         }
-        pointer new_start = reserve_step1(new_cap);
-        reserve_step2(new_start, new_cap);
+        auto new_allocation = get_new_allocation(new_cap);
+        reserve_to(new_allocation);
     }
 
     [[nodiscard]] constexpr auto capacity() const noexcept -> size_type {
@@ -518,32 +572,41 @@ public:
         if (size() == capacity()) {
             return;
         }
-        pointer new_start = alloc_traits::allocate(allocator_, size());
-        reserve_step2(new_start, size());
+        if (size() > 0) {
+            pointer new_start = alloc_traits::allocate(allocator_, size());
+            reserve_to({new_start, size()});
+        } else {
+            alloc_traits::deallocate(allocator_, begin_, capacity());
+            begin_ = nullptr;
+            end_ = nullptr;
+            end_cap_ = nullptr;
+        }
     }
 
     constexpr auto clear() noexcept -> void {
         end_ = alloc_range_destroy(begin_, end_);
     }
 
-    constexpr auto insert(const_iterator pos, const value_type& value) -> iterator {
+    constexpr auto insert(iterator pos, const value_type& value) -> iterator {
         return insert_n(pos, 1, value);
     }
 
-    constexpr auto insert(const_iterator pos, value_type&& value) -> iterator {
+    constexpr auto insert(iterator pos, value_type&& value) -> iterator {
         return insert_n(pos, 1, std::move(value));
     }
 
-    constexpr auto insert(const_iterator pos, const size_type count, const value_type& value) -> iterator {
+    constexpr auto insert(iterator pos, const size_type count, const value_type& value) -> iterator {
         return insert_n(pos, count, value);
     }
 
     // We construct all at the end at first, then rotate them to the right place
     template<class Iter>
         requires is_exactly_input_iterator<Iter>::value
-    constexpr auto insert(const_iterator pos, Iter first, Iter last) -> iterator {
+    constexpr auto insert(iterator pos, Iter first, Iter last) -> iterator {
+        // record these index because it may reallocate
         auto pos_index = pos - begin();
-        size_type old_size = size();
+        const size_type old_size = size();
+
         while (first != last) {
             emplace_back(*first);
             ++first;
@@ -553,13 +616,12 @@ public:
 
     template<class Iter>
         requires is_forward_iterator<Iter>::value
-    constexpr auto insert(const_iterator pos, Iter first, Iter last) -> iterator {
+    constexpr auto insert(iterator pos, Iter first, Iter last) -> iterator {
         auto count = ciel::distance(first, last);
         if (count <= 0) {
             return pos;
         }
-        // When it comes to expansion, we need to move construct two ranges divided by pos on new space,
-        // and construct new elements directly on that
+
         if (const size_type new_size = size() + count; new_size > capacity()) {
             size_type new_cap = capacity() ? capacity() * 2 : 1;
             while (new_size > new_cap) {
@@ -570,34 +632,48 @@ public:
             pointer new_start = alloc_traits::allocate(allocator_, new_cap);
             pointer new_pos = new_start + idx;
 
-            alloc_range_move(new_start, begin_, const_cast<pointer>(pos.base()));
-            alloc_range_move(new_pos + count, const_cast<pointer>(pos.base()), end_);
+            CIEL_TRY {
+                alloc_range_construct(new_pos, first, last);
+            } CIEL_CATCH (...) {
+                alloc_traits::deallocate(allocator_, new_start, new_cap);
+                CIEL_THROW;
+            }
 
-            clear();
-            alloc_traits::deallocate(allocator_, begin_, capacity());
+            if (begin_) {
+                alloc_range_move(new_start, begin_, pos.base());
+                alloc_range_move(new_pos + count, pos.base(), end_);
+
+                clear();
+                alloc_traits::deallocate(allocator_, begin_, capacity());
+            }
+
             begin_ = new_start;
             end_ = begin_ + new_size;
             end_cap_ = begin_ + new_cap;
-            return iterator(alloc_range_construct(new_pos, first, last) - 1);
-        } else {    // No expansion, we need to take care of initialized and uninitialized memory separately
-            pointer boundary = end_;
-            end_ = alloc_range_nothrow_move_backward(end_ + count, const_cast<pointer>(pos.base()), end_);
-            auto left_movement = boundary - pos.base();
-            auto loop_break = left_movement < count ? left_movement : count;
-            ciel::copy_n(first, loop_break, iterator(pos));
-            if (left_movement < count) {    // After assignments, there are elements need to be constructed
-                pos = iterator(alloc_range_construct(boundary, first + left_movement, last) - 1);
+
+            return iterator(new_pos + count - 1);
+        } else {
+            if (distance(pos, end()) < count) {
+                iterator old_end = end();
+                end_ = alloc_range_construct(end_, first, last);
+                return rotate(pos, old_end, end()) - 1;
+
+            } else {
+                end_ = alloc_range_nothrow_move_backward(end_ + count, pos.base(), end_);
+                for (size_type i = 0; i < static_cast<size_type>(count); ++i) {    // assignments
+                    *(pos++) = *(first++);
+                }
+                return pos;
             }
-            return pos;
         }
     }
 
-    constexpr auto insert(const_iterator pos, std::initializer_list<value_type> ilist) -> iterator {
+    constexpr auto insert(iterator pos, std::initializer_list<value_type> ilist) -> iterator {
         return insert(pos, ilist.begin(), ilist.end());
     }
 
     template<class... Args>
-    constexpr auto emplace(const_iterator pos, Args&& ... args) -> iterator {
+    constexpr auto emplace(iterator pos, Args&& ... args) -> iterator {
         if (pos == end()) {
             emplace_back(std::forward<Args>(args)...);
             return iterator(end_ - 1);    // There is possiblity of expansion, don't return iterator(pos)
@@ -605,16 +681,19 @@ public:
         return insert_n(pos, 1, value_type(std::forward<Args>(args)...));
     }
 
-    constexpr auto erase(const_iterator pos) -> iterator {
+    constexpr auto erase(iterator pos) -> iterator {
+        CIEL_PRECONDITION(!empty());
+
         return erase(pos, pos + 1);
     }
 
-    constexpr auto erase(const_iterator first, const_iterator last) -> iterator {
-        auto distance = ciel::distance(first, last);
-        if (!distance) {
+    constexpr auto erase(iterator first, iterator last) -> iterator {
+        CIEL_PRECONDITION(first <= last);
+
+        if (auto distance = ciel::distance(first, last); distance == 0) {
             return last;
         }
-        iterator new_end = move(iterator(last), end(), iterator(first));
+        iterator new_end = move(last, end(), first);
         end_ = alloc_range_destroy(new_end.base(), end_);
         return end();
     }
@@ -631,14 +710,18 @@ public:
     constexpr auto emplace_back(Args&& ... args) -> reference {
         if (size_type new_cap = capacity(); size() == new_cap) {
             new_cap = new_cap ? 2 * new_cap : 1;
-            pointer new_start = reserve_step1(new_cap);
+
+            auto new_allocation = get_new_allocation(new_cap);
+            pointer new_start = new_allocation.ptr;
+            new_cap = new_allocation.count;
+
             CIEL_TRY {
                 alloc_range_construct_n(new_start + size(), 1, std::forward<Args>(args)...);
-            } CIEL_CATCH(...) {
+            } CIEL_CATCH (...) {
                 alloc_traits::deallocate(allocator_, new_start, new_cap);
                 CIEL_THROW;
             }
-            reserve_step2(new_start, new_cap);
+            reserve_to(new_allocation, new_start + size());
             ++end_;
         } else {
             end_ = alloc_range_construct_n(end_, 1, std::forward<Args>(args)...);
@@ -647,9 +730,9 @@ public:
     }
 
     constexpr auto pop_back() noexcept -> void {
-        if (!empty()) {
-            end_ = alloc_range_destroy(end_ - 1, end_);
-        }
+        CIEL_PRECONDITION(!empty());
+
+        end_ = alloc_range_destroy(end_ - 1, end_);
     }
 
     constexpr auto resize(const size_type count) -> void {
@@ -674,8 +757,8 @@ public:
         }
     }
 
-    constexpr auto swap(vector& other)
-        noexcept(alloc_traits::propagate_on_container_swap::value || alloc_traits::is_always_equal::value) -> void {
+    constexpr auto swap(vector& other) noexcept(alloc_traits::propagate_on_container_swap::value ||
+                                                alloc_traits::is_always_equal::value) -> void {
         using std::swap;
         swap(begin_, other.begin_);
         swap(end_, other.end_);

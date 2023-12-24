@@ -414,7 +414,7 @@ private:
         CIEL_TRY {
             node_alloc_traits::construct(allocator_, new_node, nullptr, nullptr, nullptr, 1,
                                          std::forward<Args>(args)...);
-        } CIEL_CATCH(...) {
+        } CIEL_CATCH (...) {
             node_alloc_traits::deallocate(allocator_, new_node, 1);
             CIEL_THROW;
         }

@@ -324,7 +324,7 @@ private:
         node_type* new_node = node_alloc_traits::allocate(allocator_, 1);
         CIEL_TRY {
             node_alloc_traits::construct(allocator_, new_node, nullptr, hasher_, std::forward<Args>(args)...);
-        } CIEL_CATCH(...) {
+        } CIEL_CATCH (...) {
             node_alloc_traits::deallocate(allocator_, new_node, 1);
             CIEL_THROW;
         }

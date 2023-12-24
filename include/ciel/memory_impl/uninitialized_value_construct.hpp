@@ -16,7 +16,7 @@ auto uninitialized_value_construct(ForwardIt first, ForwardIt last) -> void {
         for (; current != last; ++current) {
             ::new(const_cast<void *>(static_cast<const volatile void *>(ciel::addressof(*current)))) Value();
         }
-    } CIEL_CATCH(...) {
+    } CIEL_CATCH (...) {
         ciel::destroy(first, current);
         CIEL_THROW;
     }
