@@ -11,7 +11,7 @@
 
 NAMESPACE_CIEL_BEGIN
 
-// TODO: operator<=>, operations like merge and sort
+// TODO: operations like merge and sort
 
 struct list_node_base {
     list_node_base* prev_;
@@ -79,7 +79,7 @@ public:
     }
 
     [[nodiscard]] auto operator*() const noexcept -> reference {
-        return (static_cast<node_type*>(it_))->value_;
+        return static_cast<node_type*>(it_)->value_;
     }
 
     [[nodiscard]] auto operator->() const noexcept -> pointer {
@@ -93,7 +93,7 @@ public:
 
     [[nodiscard]] auto operator++(int) noexcept -> list_iterator {
         list_iterator res(it_);
-        it_ = it_->next_;
+        ++(*this);
         return res;
     }
 
@@ -104,7 +104,7 @@ public:
 
     [[nodiscard]] auto operator--(int) noexcept -> list_iterator {
         list_iterator res(it_);
-        it_ = it_->prev_;
+        --(*this);
         return res;
     }
 
@@ -161,11 +161,13 @@ private:
     size_type size_;
     [[no_unique_address]] node_allocator allocator_;
 
-    // end->prev_ points to before_begin_, before_begin_->next_ points to end
+    // Note that this range is [begin, end)
     auto alloc_range_destroy_and_deallocate(iterator begin, iterator end) noexcept -> iterator {
         size_ -= distance(begin, end);
+
         iterator loop = begin;
         iterator before_begin = begin.prev();
+
         while (loop != end) {
             auto* to_be_destroyed = static_cast<node_type*>(loop.base());
             ++loop;
@@ -177,17 +179,16 @@ private:
         return end;
     }
 
+    // insert before begin
     // We need to allocate for each node even if there is an N-size insertion
     template<class... Arg>
     auto alloc_range_allocate_and_construct_n(iterator begin, const size_type n, Arg&& ... arg) -> iterator {
-        if (n == 0) {
-            return begin;
-        }
         iterator before_begin = begin.prev();
         iterator original_before_begin = before_begin;
+
         CIEL_TRY {
             for (size_type i = 0; i < n; ++i) {
-                node_type *construct_place = node_alloc_traits::allocate(allocator_, 1);
+                node_type* construct_place = node_alloc_traits::allocate(allocator_, 1);
                 CIEL_TRY {
                     node_alloc_traits::construct(allocator_, construct_place, before_begin.base(), begin.base(),
                                                  std::forward<Arg>(arg)...);
@@ -195,12 +196,14 @@ private:
                     before_begin.base()->next_ = construct_place;
                     begin.base()->prev_ = construct_place;
                     ++before_begin;
+
                 } CIEL_CATCH (...) {
                     node_alloc_traits::deallocate(allocator_, construct_place, 1);
                     CIEL_THROW;
                 }
             }
-            return before_begin;
+            return before_begin.next();
+
         } CIEL_CATCH (...) {
             alloc_range_destroy_and_deallocate(original_before_begin.next(), begin);
             CIEL_THROW;
@@ -209,14 +212,12 @@ private:
 
     template<legacy_input_iterator Iter>
     auto alloc_range_allocate_and_construct(iterator begin, Iter first, Iter last) -> iterator {
-        if (first == last) {
-            return begin;
-        }
         iterator before_begin = begin.prev();
         iterator original_before_begin = before_begin;
+
         CIEL_TRY {
             while (first != last) {
-                node_type *construct_place = node_alloc_traits::allocate(allocator_, 1);
+                node_type* construct_place = node_alloc_traits::allocate(allocator_, 1);
                 CIEL_TRY {
                     node_alloc_traits::construct(allocator_, construct_place, before_begin.base(), begin.base(),
                                                  *first);
@@ -225,12 +226,14 @@ private:
                     before_begin.base()->next_ = construct_place;
                     begin.base()->prev_ = construct_place;
                     ++before_begin;
+
                 } CIEL_CATCH (...) {
                     node_alloc_traits::deallocate(allocator_, construct_place, 1);
                     CIEL_THROW;
                 }
             }
             return before_begin;
+
         } CIEL_CATCH (...) {
             alloc_range_destroy_and_deallocate(original_before_begin.next(), begin);
             CIEL_THROW;
@@ -280,6 +283,7 @@ public:
             end_node_ = other.end_node_;
             size_ = other.size_;
             allocator_ = alloc;
+
             end_node_.next_->prev_ = &end_node_;
             end_node_.prev_->next_ = &end_node_;
             other.end_node_.clear();
@@ -323,14 +327,15 @@ public:
             return *this;
         }
         if (alloc_traits::propagate_on_container_move_assignment::value) {
-            allocator_ = other.allocator_;
+            allocator_ = std::move(other.allocator_);
         }
         clear();
         end_node_ = other.end_node_;
+        size_ = other.size_;
+
         end_node_.next_->prev_ = &end_node_;
         end_node_.prev_->next_ = &end_node_;
         other.end_node_.clear();
-        size_ = other.size_;
         other.size_ = 0;
         return *this;
     }
@@ -362,18 +367,26 @@ public:
     }
 
     [[nodiscard]] auto front() -> reference {
+        CIEL_PRECONDITION(!empty());
+
         return *begin();
     }
 
     [[nodiscard]] auto front() const -> const_reference {
+        CIEL_PRECONDITION(!empty());
+
         return *begin();
     }
 
     [[nodiscard]] auto back() -> reference {
+        CIEL_PRECONDITION(!empty());
+
         return *--end();
     }
 
     [[nodiscard]] auto back() const -> const_reference {
+        CIEL_PRECONDITION(!empty());
+
         return *--end();
     }
 
@@ -489,6 +502,8 @@ public:
     }
 
     auto pop_back() noexcept -> void {
+        CIEL_PRECONDITION(!empty());
+
         alloc_range_destroy_and_deallocate(end().prev(), end());
     }
 
@@ -506,6 +521,8 @@ public:
     }
 
     auto pop_front() noexcept -> void {
+        CIEL_PRECONDITION(!empty());
+
         alloc_range_destroy_and_deallocate(begin(), begin().next());
     }
 
@@ -531,10 +548,13 @@ public:
         using std::swap;
 
         swap(end_node_, other.end_node_);
+
         end_node_.next_->prev_ = &end_node_;
         end_node_.prev_->next_ = &end_node_;
+
         other.end_node_.next_->prev_ = &other.end_node_;
         other.end_node_.prev_->next_ = &other.end_node_;
+
         swap(size_, other.size_);
         swap(allocator_, other.allocator_);
     }

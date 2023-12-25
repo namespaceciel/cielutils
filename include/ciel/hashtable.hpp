@@ -457,7 +457,7 @@ public:
             return *this;
         }
         if (alloc_traits::propagate_on_container_move_assignment::value) {
-            allocator_ = other.allocator_;
+            allocator_ = std::move(other.allocator_);
         }
         clear();
         bucket_list_ = std::move(other.bucket_list_);

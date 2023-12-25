@@ -18,8 +18,6 @@
 
 NAMESPACE_CIEL_BEGIN
 
-// TODO: operator<=>
-
 // We don't provide specialization of vector for bool
 
 template<class T, class Allocator = allocator<T>>
@@ -382,7 +380,7 @@ public:
             return *this;
         }
         if (alloc_traits::propagate_on_container_move_assignment::value) {
-            allocator_ = other.allocator_;
+            allocator_ = std::move(other.allocator_);
         }
         if (begin_) {
             clear();
@@ -688,9 +686,9 @@ public:
     }
 
     constexpr auto erase(iterator first, iterator last) -> iterator {
-        CIEL_PRECONDITION(first <= last);
+//      CIEL_PRECONDITION(first <= last);
 
-        if (auto distance = ciel::distance(first, last); distance == 0) {
+        if (auto distance = ciel::distance(first, last); distance <= 0) {
             return last;
         }
         iterator new_end = move(last, end(), first);

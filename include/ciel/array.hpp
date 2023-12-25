@@ -14,8 +14,6 @@
 
 NAMESPACE_CIEL_BEGIN
 
-// TODO: operator<=>
-
 template<class T, size_t N>
 struct array {
 

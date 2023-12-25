@@ -11,7 +11,7 @@
 
 NAMESPACE_CIEL_BEGIN
 
-// TODO: operator<=>, operations like merge and sort
+// TODO: operations like merge and sort
 
 // To keep the struct lightweight, we don't have a size() in forward_list.
 // Different from list, forward_list is not a circle, which makes end() == iterator(nullptr)
@@ -19,13 +19,7 @@ NAMESPACE_CIEL_BEGIN
 struct forward_list_node_base {
     forward_list_node_base* next_;
 
-    forward_list_node_base() : next_(nullptr) {}
-
-    explicit forward_list_node_base(forward_list_node_base* n) : next_(n) {}
-
-    auto clear() noexcept -> void {
-        next_ = nullptr;
-    }
+    explicit forward_list_node_base(forward_list_node_base* n = nullptr) noexcept : next_(n) {}
 
 };    // struct forward_list_node_base
 
@@ -77,7 +71,7 @@ public:
     }
 
     [[nodiscard]] auto operator*() const noexcept -> reference {
-        return (static_cast<node_type*>(it_))->value_;
+        return static_cast<node_type*>(it_)->value_;
     }
 
     [[nodiscard]] auto operator->() const noexcept -> pointer {
@@ -91,7 +85,7 @@ public:
 
     [[nodiscard]] auto operator++(int) noexcept -> forward_list_iterator {
         forward_list_iterator res(it_);
-        it_ = it_->next_;
+        ++(*this);
         return res;
     }
 
@@ -146,6 +140,8 @@ private:
 
     // Note that this range is (begin, end)
     auto alloc_range_destroy_and_deallocate(iterator begin, iterator end) noexcept -> iterator {
+        CIEL_PRECONDITION(begin != end);
+
         iterator loop = begin.next();
         while (loop != end) {
             auto* to_be_destroyed = static_cast<node_type*>(loop.base());
@@ -160,38 +156,38 @@ private:
     // We need to allocate for each node even if there is an N-size insertion
     template<class... Arg>
     auto alloc_range_allocate_and_construct_n(iterator begin, const size_type n, Arg&& ... arg) -> iterator {
-        if (n == 0) {
-            return begin;
-        }
+        // We insert between this two, so when it throws we can destroy and deallocate previous inserted nodes
         iterator original_begin = begin;
         iterator after_begin = begin.next();
+
         CIEL_TRY {
             for (size_type i = 0; i < n; ++i) {
-                node_type *construct_place = node_alloc_traits::allocate(allocator_, 1);
+                node_type* construct_place = node_alloc_traits::allocate(allocator_, 1);
                 CIEL_TRY {
                     node_alloc_traits::construct(allocator_, construct_place, after_begin.base(),
                                                  std::forward<Arg>(arg)...);
                     begin.base()->next_ = construct_place;
                     ++begin;
+
                 } CIEL_CATCH (...) {
                     node_alloc_traits::deallocate(allocator_, construct_place, 1);
                     CIEL_THROW;
                 }
             }
             return begin;
+
         } CIEL_CATCH (...) {
-            alloc_range_destroy_and_deallocate(original_begin.next(), begin);
+            alloc_range_destroy_and_deallocate(original_begin, after_begin);
             CIEL_THROW;
         }
     }
 
     template<legacy_input_iterator Iter>
     auto alloc_range_allocate_and_construct(iterator begin, Iter first, Iter last) -> iterator {
-        if (first == last) {
-            return begin;
-        }
+        // We insert between this two, so when it throws we can destroy and deallocate previous inserted nodes
         iterator original_begin = begin;
         iterator after_begin = begin.next();
+
         CIEL_TRY {
             while (first != last) {
                 node_type *construct_place = node_alloc_traits::allocate(allocator_, 1);
@@ -200,14 +196,16 @@ private:
                     ++first;
                     begin.base()->next_ = construct_place;
                     ++begin;
+
                 } CIEL_CATCH (...) {
                     node_alloc_traits::deallocate(allocator_, construct_place, 1);
                     CIEL_THROW;
                 }
             }
             return begin;
+
         } CIEL_CATCH (...) {
-            alloc_range_destroy_and_deallocate(original_begin.next(), begin);
+            alloc_range_destroy_and_deallocate(original_begin, after_begin);
             CIEL_THROW;
         }
     }
@@ -244,14 +242,14 @@ public:
 
     forward_list(forward_list&& other) noexcept
         : before_begin_(other.before_begin_), allocator_(std::move(other.allocator_)) {
-        other.before_begin_.clear();
+        other.before_begin_.next_ = nullptr;
     }
 
     forward_list(forward_list&& other, const allocator_type& alloc) {
         if (alloc == other.get_allocator()) {
             allocator_ = alloc;
             before_begin_ = other.before_begin_;
-            other.before_begin_.clear();
+            other.before_begin_.next_ = nullptr;
         } else {
             forward_list(other, alloc).swap(*this);
         }
@@ -291,11 +289,11 @@ public:
             return *this;
         }
         if (alloc_traits::propagate_on_container_move_assignment::value) {
-            allocator_ = other.allocator_;
+            allocator_ = std::move(other.allocator_);
         }
         clear();
         before_begin_ = other.before_begin_;
-        other.before_begin_.clear();
+        other.before_begin_.next_ = nullptr;
         return *this;
     }
 
@@ -326,10 +324,14 @@ public:
     }
 
     [[nodiscard]] auto front() -> reference {
+        CIEL_PRECONDITION(!empty());
+
         return *begin();
     }
 
     [[nodiscard]] auto front() const -> const_reference {
+        CIEL_PRECONDITION(!empty());
+
         return *begin();
     }
 
@@ -376,7 +378,7 @@ public:
     [[nodiscard]] auto size() const noexcept -> size_type {
         size_type res = 0;
         iterator loop = before_begin();
-        while (loop.base()->next_) {
+        while (loop.next()) {
             ++loop;
             ++res;
         }
@@ -391,40 +393,40 @@ public:
         alloc_range_destroy_and_deallocate(before_begin(), end());
     }
 
-    auto insert_after(const_iterator pos, const T& value) -> iterator {
+    auto insert_after(iterator pos, const T& value) -> iterator {
         return alloc_range_allocate_and_construct_n(pos, 1, value);
     }
 
-    auto insert_after(const_iterator pos, T&& value) -> iterator {
+    auto insert_after(iterator pos, T&& value) -> iterator {
         return alloc_range_allocate_and_construct_n(pos, 1, std::move(value));
     }
 
-    auto insert_after(const_iterator pos, const size_type count, const T& value) -> iterator {
+    auto insert_after(iterator pos, const size_type count, const T& value) -> iterator {
         return alloc_range_allocate_and_construct_n(pos, count, value);
     }
 
     template<legacy_input_iterator Iter>
-    auto insert_after(const_iterator pos, Iter first, Iter last) -> iterator {
+    auto insert_after(iterator pos, Iter first, Iter last) -> iterator {
         return alloc_range_allocate_and_construct(pos, first, last);
     }
 
-    auto insert_after(const_iterator pos, std::initializer_list<T> ilist) -> iterator {
+    auto insert_after(iterator pos, std::initializer_list<T> ilist) -> iterator {
         return alloc_range_allocate_and_construct(pos, ilist.begin(), ilist.end());
     }
 
     template<class... Args>
-    auto emplace_after(const_iterator pos, Args&& ... args) -> iterator {
+    auto emplace_after(iterator pos, Args&& ... args) -> iterator {
         return alloc_range_allocate_and_construct_n(pos, 1, std::forward<Args>(args)...);
     }
 
-    auto erase_after(const_iterator pos) -> iterator {
+    auto erase_after(iterator pos) -> iterator {
         if (pos.next() == end()) {
             return end();
         }
         return alloc_range_destroy_and_deallocate(pos, pos.next().next());
     }
 
-    auto erase_after(const_iterator first, const_iterator last) -> iterator {
+    auto erase_after(iterator first, iterator last) -> iterator {
         return alloc_range_destroy_and_deallocate(first, last);
     }
 
@@ -442,9 +444,8 @@ public:
     }
 
     auto pop_front() noexcept -> void {
-        if (empty()) {
-            return;
-        }
+        CIEL_PRECONDITION(!empty());
+
         alloc_range_destroy_and_deallocate(before_begin(), begin().next());
     }
 
@@ -493,7 +494,7 @@ template<class T, class Alloc>
 
 template<class T, class Alloc, class U>
 auto erase(forward_list<T, Alloc>& c, const U& value) -> typename forward_list<T, Alloc>::size_type {
-    return c.remove_if([&](auto& elem) { return elem == value; });
+    return c.remove_if([&](auto&& elem) { return elem == value; });
 }
 
 template<class T, class Alloc, class Pred>
