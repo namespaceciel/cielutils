@@ -268,39 +268,30 @@ TEST(deque_tests, copy_and_move_behavior2) {
 
 TEST(deque_tests, copy_and_move_behavior3) {
     ConstructAndAssignCounter::copy = 0;
-    ConstructAndAssignCounter::move = 0;
 
     ciel::deque<ConstructAndAssignCounter> v1(10);
     v1.erase(v1.begin());
     ASSERT_EQ(ConstructAndAssignCounter::copy, 0);
-    ASSERT_EQ(ConstructAndAssignCounter::move, 0);
 
     v1.erase(v1.begin() + 5, v1.begin() + 7);
     ASSERT_EQ(ConstructAndAssignCounter::copy, 0);
-    ASSERT_EQ(ConstructAndAssignCounter::move, 2);
 
     v1.insert(v1.begin(), ConstructAndAssignCounter{});
     ASSERT_EQ(ConstructAndAssignCounter::copy, 0);
-    ASSERT_EQ(ConstructAndAssignCounter::move, 3);
 
     const ConstructAndAssignCounter tmp;
     v1.insert(v1.begin(), tmp);
     ASSERT_EQ(ConstructAndAssignCounter::copy, 1);
-    ASSERT_EQ(ConstructAndAssignCounter::move, 3);
 
     v1.insert(v1.begin(), 3, {});
     ASSERT_EQ(ConstructAndAssignCounter::copy, 4);
-    ASSERT_EQ(ConstructAndAssignCounter::move, 3);
 
     v1.insert(v1.begin(), {{}, {}});
     ASSERT_EQ(ConstructAndAssignCounter::copy, 6);
-    ASSERT_EQ(ConstructAndAssignCounter::move, 3);
 
     v1.shrink_to_fit();
     ASSERT_EQ(ConstructAndAssignCounter::copy, 6);
-    ASSERT_EQ(ConstructAndAssignCounter::move, 3);
 
     v1.insert(v1.end() - 2, v1.begin(), v1.begin() + 2);
     ASSERT_EQ(ConstructAndAssignCounter::copy, 8);
-    ASSERT_EQ(ConstructAndAssignCounter::move, 5);
 }

@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <ciel/algorithm.hpp>
+#include <ciel/deque.hpp>
 #include <ciel/forward_list.hpp>
 #include <ciel/list.hpp>
 #include <ciel/vector.hpp>
@@ -77,6 +78,10 @@ struct NothrowMoveStruct {
         other.ptr = nullptr;
         return *this;
     }
+
+    operator size_t() const noexcept {
+        return ptr ? *ptr : 1234;
+    }
 };
 
 auto operator==(const NothrowMoveStruct& lhs, const NothrowMoveStruct& rhs) -> bool {
@@ -91,7 +96,8 @@ auto operator==(const NothrowMoveStruct& lhs, const NothrowMoveStruct& rhs) -> b
     return true;
 }
 
-const std::initializer_list<NothrowMoveStruct> il{{}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}};
+const std::initializer_list<NothrowMoveStruct> il{{11}, {12}, {13}, {}, {14}, {15}, {}, {16},
+                                                  {}, {17}, {18}, {}, {19}, {}, {20}};
 
 }   // namespace
 
@@ -115,19 +121,25 @@ const std::initializer_list<NothrowMoveStruct> il{{}, {}, {}, {}, {}, {}, {}, {}
     } CIEL_CATCH (...) {}
 
 TEST(exception_safety_tests, vector_strong) {
-    // These vector functions provide strong exception safety when T is nothrow move constructible:
-    // emplace_back, push_back, emplace at end(), reserve, shrink_to_fit
+    // These vector functions provide strong exception safety:
+    // emplace_back, push_back, insert, emplace, reserve, shrink_to_fit, resize
     // When these functions throw, they have no effects, so we test if v changes its state in catch block
 
     ciel::vector<NothrowMoveStruct> v;
     ciel::vector<NothrowMoveStruct> state_holder;
 
     for (size_t i = 0; i < 2000; ++i) {
-        STRONG_TEST_CASE(v.emplace(v.end(), g()));
+        STRONG_TEST_CASE(v.emplace(v.end(), 1));
+
+        STRONG_TEST_CASE(v.insert(v.begin() + g() % ciel::max<size_t>(v.size(), 1), 10, 20));
 
         STRONG_TEST_CASE(v.shrink_to_fit());
 
-        STRONG_TEST_CASE(v.emplace_back(g()));
+        STRONG_TEST_CASE(v.insert(v.begin() + g() % ciel::max<size_t>(v.size(), 1), il));
+
+        STRONG_TEST_CASE(v.resize(g() % (v.size() * 2 + 1), 5));
+
+        STRONG_TEST_CASE(v.emplace_back(2));
 
         STRONG_TEST_CASE(v.reserve(g() % 4000));
     }
@@ -186,7 +198,6 @@ TEST(exception_safety_tests, forward_list_basic) {
     can_throw = true;
 
     for (size_t i = 0; i < 10000; ++i) {
-
         BASIC_TEST_CASE(v.assign(10, 20));
 
         BASIC_TEST_CASE(v.assign(il));
@@ -228,6 +239,66 @@ TEST(exception_safety_tests, list_basic) {
         BASIC_TEST_CASE(v.assign(il));
 
         BASIC_TEST_CASE(v.resize(g() % (v.size() * 2 + 1), 5));
+    }
+}
+
+[[maybe_unused]] auto print(const ciel::deque<NothrowMoveStruct>& v) -> void {
+    for (const auto& i : v) {
+        printf("%zu  ", i.operator size_t());
+    }
+    printf("\n");
+}
+
+TEST(exception_safety_tests, deque_strong) {
+    // These deque functions provide strong exception safety:
+    // emplace_front/back, push_front/back, insert, emplace, resize
+
+    ciel::deque<NothrowMoveStruct> v;
+    ciel::deque<NothrowMoveStruct> state_holder;
+
+    for (size_t i = 0; i < 10000; ++i) {
+
+        STRONG_TEST_CASE(v.emplace(v.end(), 1));
+
+        STRONG_TEST_CASE(v.insert(v.begin() + g() % ciel::max<size_t>(v.size(), 1), 10, 66));
+
+        STRONG_TEST_CASE(v.emplace_back(2));
+
+        STRONG_TEST_CASE(v.resize(g() % (v.size() * 2 + 1), 5));
+
+        STRONG_TEST_CASE(v.emplace(v.begin(), 3));
+
+        STRONG_TEST_CASE(v.insert(v.begin() + g() % ciel::max<size_t>(v.size(), 1), il));
+
+        STRONG_TEST_CASE(v.emplace_front(4));
+    }
+}
+
+TEST(exception_safety_tests, deque_basic) {
+    // Throw lots of exceptions and use valgrind checking for memory leaks
+
+    ciel::deque<NothrowMoveStruct> v;
+    can_throw = true;
+
+    for (size_t i = 0; i < 10000; ++i) {
+        // Use random numbers to insert or erase at any position in v: v.begin() + g() % ciel::max<size_t>(v.size(), 1)
+
+        BASIC_TEST_CASE(v.emplace_back());
+
+        BASIC_TEST_CASE(v.assign(il));
+
+        BASIC_TEST_CASE(v.resize(g() % (v.size() * 2 + 1), 5));
+
+        BASIC_TEST_CASE(v.insert(v.begin() + g() % ciel::max<size_t>(v.size(), 1), 10, 66));
+
+        BASIC_TEST_CASE(v.assign(10, 20));
+
+        BASIC_TEST_CASE(v.emplace_back(1));
+
+//      BASIC_TEST_CASE(v.erase(v.begin() + g() % ciel::max<size_t>(v.size(), 1),
+//                              v.begin() + g() % ciel::max<size_t>(v.size(), 1)));
+
+        BASIC_TEST_CASE(v.insert(v.begin() + g() % ciel::max<size_t>(v.size(), 1), il));
     }
 }
 

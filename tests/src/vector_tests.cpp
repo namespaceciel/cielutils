@@ -243,39 +243,30 @@ TEST(vector_tests, copy_and_move_behavior2) {
 
 TEST(vector_tests, copy_and_move_behavior3) {
     ConstructAndAssignCounter::copy = 0;
-    ConstructAndAssignCounter::move = 0;
 
     ciel::vector<ConstructAndAssignCounter> v1(10);
-    v1.erase(v1.begin());    // 10 - 1
+    v1.erase(v1.begin());
     ASSERT_EQ(ConstructAndAssignCounter::copy, 0);
-    ASSERT_EQ(ConstructAndAssignCounter::move, 9);
 
-    v1.erase(v1.begin() + 5, v1.begin() + 7);    // 9 - 2
+    v1.erase(v1.begin() + 5, v1.begin() + 7);
     ASSERT_EQ(ConstructAndAssignCounter::copy, 0);
-    ASSERT_EQ(ConstructAndAssignCounter::move, 11);
 
-    v1.insert(v1.begin(), ConstructAndAssignCounter{});    // 7 + 1
+    v1.insert(v1.begin(), ConstructAndAssignCounter{});
     ASSERT_EQ(ConstructAndAssignCounter::copy, 0);
-    ASSERT_EQ(ConstructAndAssignCounter::move, 19);
 
     const ConstructAndAssignCounter tmp;
-    v1.insert(v1.begin(), tmp);    // 8 + 1
+    v1.insert(v1.begin(), tmp);
     ASSERT_EQ(ConstructAndAssignCounter::copy, 1);
-    ASSERT_EQ(ConstructAndAssignCounter::move, 27);
 
-    v1.insert(v1.begin(), 3, {});    // 9 + 3
+    v1.insert(v1.begin(), 3, {});
     ASSERT_EQ(ConstructAndAssignCounter::copy, 4);
-    ASSERT_EQ(ConstructAndAssignCounter::move, 36);
 
-    v1.insert(v1.begin(), {{}, {}});    // capacity is 20, size is 12 + 2
+    v1.insert(v1.begin(), {{}, {}});
     ASSERT_EQ(ConstructAndAssignCounter::copy, 6);
-    ASSERT_EQ(ConstructAndAssignCounter::move, 48);
 
     v1.shrink_to_fit();    // capacity turns to 14
     ASSERT_EQ(ConstructAndAssignCounter::copy, 6);
-    ASSERT_EQ(ConstructAndAssignCounter::move, 62);
 
-    v1.insert(v1.end() - 2, v1.begin(), v1.begin() + 2);    // 14 + 2
+    v1.insert(v1.end() - 2, v1.begin(), v1.begin() + 2);
     ASSERT_EQ(ConstructAndAssignCounter::copy, 8);
-    ASSERT_EQ(ConstructAndAssignCounter::move, 76);
 }
