@@ -18,7 +18,8 @@ NAMESPACE_CIEL_BEGIN
 // Differences between std::deque and this class
 // To be simple, the "map" of deque (control block of every subarray) is list-implemented,
 //      while the common implemention is vector-like. It can avoid reallocations.
-// Also, to be simple, empty deque will still allocate a block of memory
+// Also, to be simple, empty deque will still allocate a block of memory, and if last block of subarray is full,
+//      end() will be at the first of a new-allocated subarray
 // T is not allowed to throw in move constructor/assignment
 // emplace, insert and resize has strong exception safety
 
@@ -220,8 +221,8 @@ private:
     size_type size_;
 
     auto alloc_range_destroy(iterator begin, iterator end) noexcept -> void {
-        while (end != begin) {
-            alloc_traits::destroy(allocator_, (--end).base());
+        while (begin != end) {
+            alloc_traits::destroy(allocator_, (begin++).base());
             --size_;
         }
     }
@@ -686,8 +687,8 @@ public:
     template<class Iter>
         requires is_forward_iterator<Iter>::value
     auto insert(iterator pos, Iter first, Iter last) -> iterator {
-        const size_type count = distance(first, last);
-        if (count == 0) {
+        const auto count = distance(first, last);
+        if (count <= 0) {
             return pos;
         }
 
@@ -743,14 +744,13 @@ public:
         CIEL_PRECONDITION(first - begin() >= 0 && end() - first >= 0);
         CIEL_PRECONDITION(last - begin() >= 0 && end() - last >= 0);
 
-        auto distance = ciel::distance(first, last);
-        if (distance <= 0) {
+        if (distance(first, last) <= 0) {
             return last;
         }
 
         auto index = first - begin();
 
-        if (ciel::distance(begin(), first) < ciel::distance(last, end())) {
+        if (distance(begin(), first) < distance(last, end())) {
             iterator old_begin = begin();
             begin_ = move_backward(begin(), first, last);
             alloc_range_destroy(old_begin, begin());
@@ -773,10 +773,7 @@ public:
 
     template<class... Args>
     auto emplace_back(Args&& ... args) -> reference {
-        // Don't do end_.cur_ + 1 == end_.end(), because end() will jump to the head of next subarray
-        if (end().cur_ == end().finish() - 1 && end().node_ == map_.end().prev()) {
-            map_.emplace_back(subarray_type(alloc_traits::allocate(allocator_, SubarraySize), allocator_));
-        }
+        get_enough_back_space(1);
         alloc_range_construct_n(end(), 1, std::forward<Args>(args)...);
         return back();
     }
@@ -797,9 +794,7 @@ public:
 
     template<class... Args>
     auto emplace_front(Args&& ... args) -> reference {
-        if (begin().cur_ == begin().start() && begin().node_ == map_.begin()) {
-            map_.emplace_front(subarray_type(alloc_traits::allocate(allocator_, SubarraySize), allocator_));
-        }
+        get_enough_front_space(1);
         alloc_range_construct_n(begin() - 1, 1, std::forward<Args>(args)...);
         --begin_;
         return front();
