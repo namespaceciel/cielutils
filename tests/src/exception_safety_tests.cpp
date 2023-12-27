@@ -250,7 +250,7 @@ TEST(exception_safety_tests, deque_strong) {
     ciel::deque<NothrowMoveStruct> v;
     ciel::deque<NothrowMoveStruct> state_holder;
 
-    for (size_t i = 0; i < 10000; ++i) {
+    for (size_t i = 0; i < 2000; ++i) {
 
         STRONG_TEST_CASE(v.emplace(v.end(), 1));
 

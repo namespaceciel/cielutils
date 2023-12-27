@@ -217,7 +217,7 @@ public:
 private:
     [[no_unique_address]] allocator_type allocator_;
     list<subarray_type, allocator_type> map_;
-    iterator begin_;
+    size_type begin_offset_;
     size_type size_;
 
     auto alloc_range_destroy(iterator begin, iterator end) noexcept -> void {
@@ -227,13 +227,13 @@ private:
         }
     }
 
-    template<class... Arg>
-    auto alloc_range_construct_n(iterator begin, const size_type n, Arg&& ... arg) -> iterator {
+    template<class... Args>
+    auto alloc_range_construct_n(iterator begin, const size_type n, Args&& ... args) -> iterator {
         iterator end = begin;
 
         CIEL_TRY {
             for (size_type i = 0; i < n; ++i) {
-                alloc_traits::construct(allocator_, end.base(), std::forward<Arg>(arg)...);
+                alloc_traits::construct(allocator_, end.base(), std::forward<Args>(args)...);
                 ++end;
                 ++size_;
             }
@@ -266,7 +266,7 @@ private:
 
     auto clear_and_get_cap_no_less_than(const size_type size) -> void {
         clear();
-        begin_ = iterator(map_.front().get(), map_.begin());
+        begin_offset_ = 0;
 
         size_type s = size / SubarraySize + 1;
         if (map_.size() < s) {
@@ -278,13 +278,7 @@ private:
     }
 
     [[nodiscard]] auto front_space() const noexcept -> size_type {
-        size_type res = begin().cur_ - begin().start();
-        auto cur = begin().node_;
-        while (cur != map_.begin()) {
-            res += SubarraySize;
-            --cur;
-        }
-        return res;
+        return begin_offset_;
     }
 
     [[nodiscard]] auto back_space() const noexcept -> size_type {
@@ -344,7 +338,7 @@ private:
             alloc_range_construct_n(begin() - count, count, std::forward<Arg>(arg));
 
             iterator old_begin = begin();
-            begin_ -= count;
+            begin_offset_ -= count;
 
             rotate(begin(), old_begin, pos);
             return pos - 1;
@@ -364,6 +358,7 @@ private:
             fs = (count - fs) / SubarraySize + 1;
             while (fs-- > 0) {
                 map_.emplace_front(subarray_type(alloc_traits::allocate(allocator_, SubarraySize), allocator_));
+                begin_offset_ += SubarraySize;
             }
         }
     }
@@ -379,15 +374,13 @@ private:
 
 public:
     deque()
-        : allocator_(), map_(allocator_), size_(0) {
+        : allocator_(), map_(allocator_), begin_offset_(0), size_(0) {
         map_.emplace_back(subarray_type(alloc_traits::allocate(allocator_, SubarraySize), allocator_));
-        begin_ = iterator(map_.front().get(), map_.begin());
     }
 
     explicit deque(const allocator_type& alloc)
-        : allocator_(alloc), map_(allocator_), size_(0) {
+        : allocator_(alloc), map_(allocator_), begin_offset_(0), size_(0) {
         map_.emplace_back(subarray_type(alloc_traits::allocate(allocator_, SubarraySize), allocator_));
-        begin_ = iterator(map_.front().get(), map_.begin());
     }
 
     deque(const size_type count, const T& value, const allocator_type& alloc = allocator_type())
@@ -513,7 +506,7 @@ public:
         requires is_exactly_input_iterator<Iter>::value
     auto assign(Iter first, Iter last) -> void {
         clear();
-        begin_ = iterator(map_.front().get(), map_.begin());
+        begin_offset_ = 0;
         while (first != last) {
             emplace_back(*first);
             ++first;
@@ -587,11 +580,11 @@ public:
     }
 
     [[nodiscard]] auto begin() noexcept -> iterator {
-        return begin_;
+        return iterator(map_.front().get(), map_.begin()) + begin_offset_;
     }
 
     [[nodiscard]] auto begin() const noexcept -> const_iterator {
-        return begin_;
+        return iterator(map_.front().get(), map_.begin()) + begin_offset_;
     }
 
     [[nodiscard]] auto cbegin() const noexcept -> const_iterator {
@@ -647,8 +640,9 @@ public:
     }
 
     auto shrink_to_fit() noexcept -> void {
-        while (map_.begin() != begin().node_) {
+        while (begin_offset_ >= SubarraySize) {
             map_.pop_front();
+            begin_offset_ -= SubarraySize;
         }
         while (map_.end().prev() != end().node_) {
             map_.pop_back();
@@ -702,7 +696,7 @@ public:
             alloc_range_construct(begin() - count, first, last);
 
             iterator old_begin = begin();
-            begin_ -= count;
+            begin_offset_ -= count;
 
             rotate(begin(), old_begin, pos);
             return pos - 1;
@@ -744,23 +738,31 @@ public:
         CIEL_PRECONDITION(first - begin() >= 0 && end() - first >= 0);
         CIEL_PRECONDITION(last - begin() >= 0 && end() - last >= 0);
 
-        if (distance(first, last) <= 0) {
+        const auto count = distance(first, last);
+
+        if (count <= 0) {
             return last;
         }
 
-        auto index = first - begin();
+        const auto begin_first_distance = distance(begin(), first);
+        const auto last_end_distance = distance(last, end());
 
-        if (distance(begin(), first) < distance(last, end())) {
+        if (begin_first_distance < last_end_distance) {
             iterator old_begin = begin();
-            begin_ = move_backward(begin(), first, last);
+
+            begin_offset_ += count;
+
             alloc_range_destroy(old_begin, begin());
 
         } else {
             iterator new_end = move(last, end(), first);
+
             alloc_range_destroy(new_end, end());
         }
 
-        return begin() + index;
+        shrink_to_fit();
+
+        return begin() + begin_first_distance;
     }
 
     auto push_back(const T& value) -> void {
@@ -781,7 +783,7 @@ public:
     auto pop_back() noexcept -> void {
         CIEL_PRECONDITION(!empty());
 
-        alloc_range_destroy(end() - 1, end());
+        alloc_range_destroy(--end(), end());
     }
 
     auto push_front(const T& value) -> void {
@@ -795,16 +797,18 @@ public:
     template<class... Args>
     auto emplace_front(Args&& ... args) -> reference {
         get_enough_front_space(1);
-        alloc_range_construct_n(begin() - 1, 1, std::forward<Args>(args)...);
-        --begin_;
+
+        alloc_range_construct_n(--begin(), 1, std::forward<Args>(args)...);
+        --begin_offset_;
+
         return front();
     }
 
     auto pop_front() noexcept -> void {
         CIEL_PRECONDITION(!empty());
 
-        alloc_range_destroy(begin(), begin() + 1);
-        ++begin_;
+        alloc_range_destroy(begin(), ++begin());
+        ++begin_offset_;
     }
 
     auto resize(const size_type count) -> void {
@@ -834,7 +838,7 @@ public:
     auto swap(deque& other) noexcept(alloc_traits::is_always_equal::value) -> void {
         using std::swap;
         swap(map_, other.map_);
-        swap(begin_, other.begin_);
+        swap(begin_offset_, other.begin_offset_);
         swap(size_, other.size_);
         swap(allocator_, other.allocator_);
     }
