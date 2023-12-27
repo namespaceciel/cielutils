@@ -807,8 +807,8 @@ public:
 };  // class avl
 
 template<class Key, class Compare, class Alloc>
-[[nodiscard]] auto operator==(const avl<Key, Compare, Alloc>& lhs, const avl<Key, Compare, Alloc>& rhs) noexcept
-    -> bool {
+[[nodiscard]] auto operator==(const avl<Key, Compare, Alloc>& lhs,
+                              const avl<Key, Compare, Alloc>& rhs) noexcept -> bool {
     if (lhs.size() != rhs.size()) {
         return false;
     }

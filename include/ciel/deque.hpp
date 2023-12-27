@@ -180,6 +180,10 @@ template<class T, class Pointer1, class Pointer2, class Reference1,
 [[nodiscard]] auto operator-(const deque_iterator<T, Pointer1, Reference1, MapIterator, SubarraySize>& lhs,
                              const deque_iterator<T, Pointer2, Reference2, MapIterator, SubarraySize>& rhs) noexcept
     -> typename iterator_traits<deque_iterator<T, Pointer1, Reference1, MapIterator, SubarraySize>>::difference_type {
+
+    // We need to make sure lhs >= rhs, otherwise distance(rhs.node_, lhs.node_) may crash,
+    // since the node_ is list iterator and can't get negative result out of distance function
+
     return SubarraySize * (distance(rhs.node_, lhs.node_) - 1) +
                 (lhs.base() - lhs.start()) + (rhs.finish() - rhs.base());
 }
@@ -334,6 +338,8 @@ private:
         if (begin_pos_distance < pos_end_distance) {  // move left half to left
 
             get_enough_front_space(count);
+
+            CIEL_PRECONDITION(begin_offset_ >= count);
 
             alloc_range_construct_n(begin() - count, count, std::forward<Arg>(arg));
 
@@ -693,6 +699,8 @@ public:
 
             get_enough_front_space(count);
 
+            CIEL_PRECONDITION(begin_offset_ >= static_cast<size_type>(count));
+
             alloc_range_construct(begin() - count, first, last);
 
             iterator old_begin = begin();
@@ -735,17 +743,23 @@ public:
     }
 
     auto erase(iterator first, iterator last) noexcept -> iterator {
-        CIEL_PRECONDITION(first - begin() >= 0 && end() - first >= 0);
-        CIEL_PRECONDITION(last - begin() >= 0 && end() - last >= 0);
+        const difference_type begin_first_distance = distance(begin(), first);
+        const difference_type begin_last_distance = distance(begin(), last);
 
-        const auto count = distance(first, last);
+        // Don't do count = distance(first, last) because if last is at the left subarray of first's,
+        //
+        // ----------   ----------   ----------   ----------  (list<unique_ptr<T>>)
+        //     |              |            |              |
+        //   begin()        last         first           end()
+        //
+        // we can't get negative result out of distance function on list's iterator
 
+        const difference_type count = begin_last_distance - begin_first_distance;
         if (count <= 0) {
             return last;
         }
 
-        const auto begin_first_distance = distance(begin(), first);
-        const auto last_end_distance = distance(last, end());
+        const difference_type last_end_distance = distance(last, end());
 
         if (begin_first_distance < last_end_distance) {
             iterator old_begin = begin();
@@ -797,6 +811,8 @@ public:
     template<class... Args>
     auto emplace_front(Args&& ... args) -> reference {
         get_enough_front_space(1);
+
+        CIEL_PRECONDITION(begin_offset_ > 0);
 
         alloc_range_construct_n(--begin(), 1, std::forward<Args>(args)...);
         --begin_offset_;

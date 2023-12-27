@@ -268,7 +268,6 @@ TEST(exception_safety_tests, deque_strong) {
     }
 }
 
-// FIXME: There is something wrong with emplace_front or erase implementation, it will crash when calling them all
 TEST(exception_safety_tests, deque_basic) {
     // Throw lots of exceptions and use valgrind checking for memory leaks
 
@@ -284,14 +283,14 @@ TEST(exception_safety_tests, deque_basic) {
 
         BASIC_TEST_CASE(v.resize(g() % (v.size() * 2 + 1), 5));
 
-//      BASIC_TEST_CASE(v.insert(v.begin() + g() % ciel::max<size_t>(v.size(), 1), 10, 66));
+        BASIC_TEST_CASE(v.insert(v.begin() + g() % ciel::max<size_t>(v.size(), 1), 10, 66));
 
         BASIC_TEST_CASE(v.assign(10, 20));
 
-//      BASIC_TEST_CASE(v.emplace_front(2));
+        BASIC_TEST_CASE(v.emplace_front(2));
 
-//      BASIC_TEST_CASE(v.erase(v.begin() + g() % ciel::max<size_t>(v.size(), 1),
-//                              v.begin() + g() % ciel::max<size_t>(v.size(), 1)));
+        BASIC_TEST_CASE(v.erase(v.begin() + g() % ciel::max<size_t>(v.size(), 1),
+                                v.begin() + g() % ciel::max<size_t>(v.size(), 1)));
 
         BASIC_TEST_CASE(v.insert(v.begin() + g() % ciel::max<size_t>(v.size(), 1), il));
     }
