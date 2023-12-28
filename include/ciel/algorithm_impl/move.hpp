@@ -2,6 +2,7 @@
 #define CIELUTILS_INCLUDE_CIEL_ALGORITHM_IMPL_MOVE_HPP_
 
 #include <ciel/config.hpp>
+#include <utility>
 
 NAMESPACE_CIEL_BEGIN
 

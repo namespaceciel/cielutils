@@ -1,7 +1,7 @@
 #ifndef CIELUTILS_INCLUDE_CIEL_CONFIG_HPP_
 #define CIELUTILS_INCLUDE_CIEL_CONFIG_HPP_
 
-#include <exception>
+#include <cassert>
 
 #ifdef __cpp_exceptions
 #define CIEL_HAS_EXCEPTIONS

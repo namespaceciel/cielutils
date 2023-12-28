@@ -24,7 +24,7 @@ struct ConstructAndAssignCounter {
 }   // namespace
 
 TEST(vector_tests, constructors) {
-    const ciel::vector<int> v1;
+    constexpr ciel::vector<int> v1;
     ASSERT_TRUE(v1.empty());
     ASSERT_EQ(v1.size(), 0);
     ASSERT_EQ(v1.capacity(), 0);

@@ -1,7 +1,6 @@
 #ifndef CIELUTILS_INCLUDE_CIEL_VECTOR_HPP_
 #define CIELUTILS_INCLUDE_CIEL_VECTOR_HPP_
 
-#include <ciel/algorithm_impl/copy_n.hpp>
 #include <ciel/algorithm_impl/equal.hpp>
 #include <ciel/algorithm_impl/move.hpp>
 #include <ciel/algorithm_impl/remove.hpp>
@@ -145,9 +144,9 @@ private:
     // move old elements to new_start, destroy old elements, deallocate old memory, renew begin_, end_, end_cap_
     constexpr auto reserve_to(allocation_result<pointer, size_type> new_allocation) noexcept -> void {
         CIEL_PRECONDITION(new_allocation.count > 0);
+        CIEL_PRECONDITION(size() <= new_allocation.count);
 
         pointer new_start = new_allocation.ptr;
-        const size_type new_cap = new_allocation.count;
 
         alloc_range_move(new_start, begin_, end_);
 
@@ -160,7 +159,7 @@ private:
 
         begin_ = new_start;
         end_ = begin_ + old_size;
-        end_cap_ = begin_ + new_cap;
+        end_cap_ = begin_ + new_allocation.count;
     }
 
     template<class Arg>
@@ -211,15 +210,15 @@ private:
         }
     }
 
-    constexpr auto clear_and_get_cap_no_less_than(const size_type size) -> void {
+    constexpr auto clear_and_get_cap_no_less_than(const size_type cap) -> void {
         clear();
-        if (capacity() < size) {
+        if (capacity() < cap) {
             if (begin_) {
                 alloc_traits::deallocate(allocator_, begin_, capacity());
                 begin_ = nullptr;    // Prevent exceptions throwing and double free in destructor when asking for memory
             }
-            begin_ = alloc_traits::allocate(allocator_, size);
-            end_cap_ = begin_ + size;
+            begin_ = alloc_traits::allocate(allocator_, cap);
+            end_cap_ = begin_ + cap;
             end_ = begin_;
         }
     }
@@ -533,7 +532,7 @@ public:
     // Consider this situation: v.emplace_back(v[0]);
     // So we need to construct new elements on new space first,
     // then move old elements to new space and clear old space
-    constexpr auto reserve(const size_type new_cap) ->void {
+    constexpr auto reserve(const size_type new_cap) -> void {
         if (new_cap <= capacity()) {
             return;
         }
@@ -584,17 +583,23 @@ public:
         auto pos_index = pos - begin();
         const size_type old_size = size();
 
-        while (first != last) {
-            emplace_back(*first);
-            ++first;
+        CIEL_TRY {
+            while (first != last) {
+                emplace_back(*first);
+                ++first;
+            }
+        } CIEL_CATCH (...) {
+            end_ = alloc_range_destroy(begin() + old_size, end());
+            CIEL_THROW;
         }
+
         return rotate(begin() + pos_index, begin() + old_size, end()) - 1;
     }
 
     template<class Iter>
         requires is_forward_iterator<Iter>::value
     constexpr auto insert(iterator pos, Iter first, Iter last) -> iterator {
-        auto count = ciel::distance(first, last);
+        const auto count = ciel::distance(first, last);
         if (count <= 0) {
             return pos;
         }
@@ -707,7 +712,7 @@ public:
 
     constexpr auto resize(const size_type count) -> void {
         if (size() >= count) {
-            end_ = alloc_range_destroy(end_ - (size() - count), end_);
+            end_ = alloc_range_destroy(begin_ + count, end_);
             return;
         }
         if (count > capacity()) {
@@ -718,7 +723,7 @@ public:
 
     constexpr auto resize(const size_type count, const value_type& value) -> void {
         if (size() >= count) {
-            end_ = alloc_range_destroy(end_ - (size() - count), end_);
+            end_ = alloc_range_destroy(begin_ + count, end_);
             return;
         }
         if (count > capacity()) {

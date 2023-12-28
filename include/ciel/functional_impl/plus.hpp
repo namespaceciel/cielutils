@@ -2,6 +2,7 @@
 #define CIELUTILS_INCLUDE_CIEL_FUNCTIONAL_IMPL_PLUS_HPP_
 
 #include <ciel/config.hpp>
+#include <utility>
 
 NAMESPACE_CIEL_BEGIN
 

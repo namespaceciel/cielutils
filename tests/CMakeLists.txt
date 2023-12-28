@@ -5,8 +5,32 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_BUILD_TYPE "Debug")
 
-file(GLOB_RECURSE ALL_TESTS ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp)
-add_executable(cielutils_tests ${ALL_TESTS})
+add_executable(cielutils_tests
+        src/all.cpp
+        src/algorithm_tests.cpp
+        src/any_tests.cpp
+        src/array_tests.cpp
+        src/concepts_tests.cpp
+        src/deque_tests.cpp
+        src/forward_list_tests.cpp
+        src/function_tests.cpp
+        src/iterator_tests.cpp
+        src/list_tests.cpp
+        src/map_tests.cpp
+        src/memory_tests.cpp
+        src/pair_tests.cpp
+        src/queue_tests.cpp
+        src/set_tests.cpp
+        src/span_tests.cpp
+        src/split_buffer_tests.cpp
+        src/stack_tests.cpp
+        src/tuple_tests.cpp
+        src/type_traits_tests.cpp
+        src/unordered_set_tests.cpp
+        src/variant_tests.cpp
+        src/vector_tests.cpp
+        src/exception_safety_tests.cpp
+)
 
 target_link_libraries(cielutils_tests cielutils)
 

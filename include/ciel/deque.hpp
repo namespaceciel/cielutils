@@ -1,7 +1,6 @@
 #ifndef CIELUTILS_INCLUDE_CIEL_DEQUE_HPP_
 #define CIELUTILS_INCLUDE_CIEL_DEQUE_HPP_
 
-#include <ciel/algorithm_impl/copy_n.hpp>
 #include <ciel/algorithm_impl/move.hpp>
 #include <ciel/algorithm_impl/move_backward.hpp>
 #include <ciel/algorithm_impl/remove.hpp>
@@ -18,6 +17,7 @@ NAMESPACE_CIEL_BEGIN
 // Differences between std::deque and this class
 // To be simple, the "map" of deque (control block of every subarray) is list-implemented,
 //      while the common implemention is vector-like. It can avoid reallocations.
+//      But we can't get negative distance of two iterators instead.
 // Also, to be simple, empty deque will still allocate a block of memory, and if last block of subarray is full,
 //      end() will be at the first of a new-allocated subarray
 // T is not allowed to throw in move constructor/assignment
@@ -281,11 +281,11 @@ private:
         }
     }
 
-    [[nodiscard]] auto front_space() const noexcept -> size_type {
+    [[nodiscard]] auto front_spare() const noexcept -> size_type {
         return begin_offset_;
     }
 
-    [[nodiscard]] auto back_space() const noexcept -> size_type {
+    [[nodiscard]] auto back_spare() const noexcept -> size_type {
         size_type res = end().finish() - end().cur_ - 1;
         auto cur = end().node_;
         while (cur != map_.end().prev()) {
@@ -332,12 +332,9 @@ private:
             return pos;
         }
 
-        const size_type begin_pos_distance = distance(begin(), pos);
-        const size_type pos_end_distance = distance(pos, end());
+        if (distance(begin(), pos) < distance(pos, end())) {    // move left half to left
 
-        if (begin_pos_distance < pos_end_distance) {  // move left half to left
-
-            get_enough_front_space(count);
+            get_enough_front_spare(count);
 
             CIEL_PRECONDITION(begin_offset_ >= count);
 
@@ -351,7 +348,7 @@ private:
 
         } else {    // move right half to right
 
-            get_enough_back_space(count);
+            get_enough_back_spare(count);
 
             iterator old_end = end();
             alloc_range_construct_n(end(), count, std::forward<Arg>(arg));
@@ -359,21 +356,52 @@ private:
         }
     }
 
-    auto get_enough_front_space(const size_type count) -> void {
-        if (size_type fs = front_space(); count > fs) {
-            fs = (count - fs) / SubarraySize + 1;
-            while (fs-- > 0) {
-                map_.emplace_front(subarray_type(alloc_traits::allocate(allocator_, SubarraySize), allocator_));
+    auto get_enough_front_spare(const size_type count) -> void {
+        if (size_type fs = front_spare(); count > fs) {
+            fs = (count - fs) / SubarraySize + 1;   // blocks of memory we need
+
+            // Check if we can use back spare
+            size_type bs = back_spare();
+            while (bs >= SubarraySize && fs > 0) {
+                auto block = std::move(map_.back());
+                map_.pop_back();
+                map_.emplace_front(std::move(block));
+                bs -= SubarraySize;
+
                 begin_offset_ += SubarraySize;
+                --fs;
+            }
+
+            while (fs > 0) {
+                map_.emplace_front(subarray_type(alloc_traits::allocate(allocator_, SubarraySize), allocator_));
+
+                begin_offset_ += SubarraySize;
+                --fs;
             }
         }
     }
 
-    auto get_enough_back_space(const size_type count) -> void {
-        if (size_type bs = back_space(); count >= bs) {
+    auto get_enough_back_spare(const size_type count) -> void {
+        if (size_type bs = back_spare(); count >= bs) {
             bs = (count - bs) / SubarraySize + 1;
-            while (bs-- > 0) {
+
+            // Check if we can use front spare
+            size_type fs = front_spare();
+            while (fs >= SubarraySize && bs > 0) {
+                auto block = std::move(map_.front());
+                map_.pop_front();
+                begin_offset_ -= SubarraySize;
+
+                map_.emplace_back(std::move(block));
+                fs -= SubarraySize;
+
+                --bs;
+            }
+
+            while (bs > 0) {
                 map_.emplace_back(subarray_type(alloc_traits::allocate(allocator_, SubarraySize), allocator_));
+
+                --bs;
             }
         }
     }
@@ -675,13 +703,18 @@ public:
         requires is_exactly_input_iterator<Iter>::value
     auto insert(iterator pos, Iter first, Iter last) -> iterator {
 
-        auto old_begin = begin();
+        auto old_end = end();
 
-        while (first != last) {
-            emplace_back(*first);
-            ++first;
+        CIEL_TRY {
+            while (first != last) {
+                emplace_back(*first);
+                ++first;
+            }
+        } CIEL_CATCH (...) {
+            alloc_range_destroy(old_end, end());
+            CIEL_THROW;
         }
-        return rotate(pos, old_begin, end()) - 1;
+        return rotate(pos, old_end, end()) - 1;
     }
 
     template<class Iter>
@@ -692,12 +725,9 @@ public:
             return pos;
         }
 
-        const size_type begin_pos_distance = distance(begin(), pos);
-        const size_type pos_end_distance = distance(pos, end());
+        if (distance(begin(), pos) < distance(pos, end())) {  // move left half to left
 
-        if (begin_pos_distance < pos_end_distance) {  // move left half to left
-
-            get_enough_front_space(count);
+            get_enough_front_spare(count);
 
             CIEL_PRECONDITION(begin_offset_ >= static_cast<size_type>(count));
 
@@ -711,7 +741,7 @@ public:
 
         } else {    // move right half to right
 
-            get_enough_back_space(count);
+            get_enough_back_spare(count);
 
             iterator old_end = end();
             alloc_range_construct(end(), first, last);
@@ -759,11 +789,10 @@ public:
             return last;
         }
 
-        const difference_type last_end_distance = distance(last, end());
+        if (begin_first_distance < distance(last, end())) {
+            move_backward(begin(), first, last);
 
-        if (begin_first_distance < last_end_distance) {
             iterator old_begin = begin();
-
             begin_offset_ += count;
 
             alloc_range_destroy(old_begin, begin());
@@ -773,8 +802,6 @@ public:
 
             alloc_range_destroy(new_end, end());
         }
-
-        shrink_to_fit();
 
         return begin() + begin_first_distance;
     }
@@ -789,7 +816,7 @@ public:
 
     template<class... Args>
     auto emplace_back(Args&& ... args) -> reference {
-        get_enough_back_space(1);
+        get_enough_back_spare(1);
         alloc_range_construct_n(end(), 1, std::forward<Args>(args)...);
         return back();
     }
@@ -810,7 +837,7 @@ public:
 
     template<class... Args>
     auto emplace_front(Args&& ... args) -> reference {
-        get_enough_front_space(1);
+        get_enough_front_spare(1);
 
         CIEL_PRECONDITION(begin_offset_ > 0);
 
@@ -833,7 +860,7 @@ public:
         } else {
             const size_type needed_space = count - size();
 
-            get_enough_back_space(needed_space);
+            get_enough_back_spare(needed_space);
 
             alloc_range_construct_n(end(), needed_space);
         }
@@ -845,7 +872,7 @@ public:
         } else {
             const size_type needed_space = count - size();
 
-            get_enough_back_space(needed_space);
+            get_enough_back_spare(needed_space);
 
             alloc_range_construct_n(end(), needed_space, value);
         }
