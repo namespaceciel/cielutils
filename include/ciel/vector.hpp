@@ -97,6 +97,22 @@ private:
         }
     }
 
+    constexpr auto range_assign_n(pointer begin, const size_type n, const value_type& value) -> void {
+        for (size_type i = 0; i < n; ++i) {
+            *begin = value;
+            ++begin;
+        }
+    }
+
+    template<class Iter>
+    constexpr auto range_assign(pointer begin, Iter first, Iter last) -> void {
+        while (first != last) {
+            *begin = *first;
+            ++first;
+            ++begin;
+        }
+    }
+
     // Used in expansion
     constexpr auto alloc_range_move(pointer begin, pointer first, pointer last) noexcept -> pointer {
         CIEL_PRECONDITION(first <= last);
@@ -107,30 +123,6 @@ private:
         }
         return end;
     }
-
-//  Was used in insert and emplace
-//
-//  O  O  O  O  O  O  O  O  O  O
-//
-//  insert three elements
-//           -  -  -
-//  O  O  O  N  N  N  O  O  O  O  O  O  O
-//                    ----------  -------
-//                    move assign placement new
-//
-//  constexpr auto alloc_range_move_backward(pointer end, pointer first, pointer last) noexcept -> pointer {
-//      CIEL_PRECONDITION(first <= last);
-//
-//      pointer begin = end;
-//      pointer boundary = last;
-//      while (first != last && begin != boundary) {
-//          alloc_traits::construct(allocator_, --begin, std::move(*--last));
-//      }
-//      while (first != last) {
-//          *--begin = std::move(*--last);
-//      }
-//      return end;
-//  }
 
     [[nodiscard]] constexpr auto get_new_allocation(const size_type new_cap) -> allocation_result<pointer, size_type> {
         CIEL_PRECONDITION(new_cap > 0);
@@ -278,7 +270,7 @@ public:
         requires is_forward_iterator<Iter>::value
     constexpr vector(Iter first, Iter last, const allocator_type& alloc = allocator_type())
         : vector(alloc) {
-        if (auto count = ciel::distance(first, last); count > 0) {
+        if (const auto count = ciel::distance(first, last); count > 0) {
             begin_ = alloc_traits::allocate(allocator_, count);
             end_cap_ = begin_ + count;
             CIEL_TRY {
@@ -332,17 +324,19 @@ public:
         if (this == addressof(other)) {
             return *this;
         }
+
         if (alloc_traits::propagate_on_container_copy_assignment::value) {
             if (allocator_ != other.allocator_) {
                 vector(other.allocator_).swap(*this);
-                clear_and_get_cap_no_less_than(other.size());
-                end_ = alloc_range_construct(begin_, other.begin(), other.end());
+                assign(other.begin(), other.end());
                 return *this;
             }
+
             allocator_ = other.allocator_;
         }
-        clear_and_get_cap_no_less_than(other.size());
-        end_ = alloc_range_construct(begin_, other.begin(), other.end());
+        assign(other.begin(), other.end());
+
+        CIEL_POSTCONDITION(*this == other);
         return *this;
     }
 
@@ -352,11 +346,12 @@ public:
         if (this == addressof(other)) {
             return *this;
         }
+
         if (!alloc_traits::propagate_on_container_move_assignment::value && allocator_ != other.allocator_) {
-            clear_and_get_cap_no_less_than(other.size());
-            end_ = alloc_range_construct(begin_, other.begin(), other.end());
+            assign(other.begin(), other.end());
             return *this;
         }
+
         if (alloc_traits::propagate_on_container_move_assignment::value) {
             allocator_ = std::move(other.allocator_);
         }
@@ -374,21 +369,54 @@ public:
     }
 
     constexpr auto operator=(std::initializer_list<value_type> ilist) -> vector& {
-        clear_and_get_cap_no_less_than(ilist.size());
-        end_ = alloc_range_construct(begin_, ilist.begin(), ilist.end());
+        assign(ilist.begin(), ilist.end());
         return *this;
     }
 
     constexpr auto assign(const size_type count, const value_type& value) -> void {
-        clear_and_get_cap_no_less_than(count);
-        end_ = alloc_range_construct_n(begin_, count, value);
+        if (capacity() < count) {
+            clear_and_get_cap_no_less_than(count);
+            end_ = alloc_range_construct_n(begin_, count, value);
+            return;
+        }
+
+        if (size() > count) {
+            end_ = alloc_range_destroy(begin_ + count, end_);
+        }
+
+        CIEL_POSTCONDITION(size() <= count);
+
+        range_assign_n(begin_, size(), value);
+        // if count > size()
+        end_ = alloc_range_construct_n(end_, count - size(), value);
+
+        CIEL_POSTCONDITION(size() == count);
     }
 
     template<class Iter>
         requires is_forward_iterator<Iter>::value
     constexpr auto assign(Iter first, Iter last) -> void {
-        clear_and_get_cap_no_less_than(ciel::distance(first, last));
-        end_ = alloc_range_construct(begin_, first, last);
+        const size_type count = ciel::distance(first, last);
+
+        if (capacity() < count) {
+            clear_and_get_cap_no_less_than(count);
+            end_ = alloc_range_construct(begin_, first, last);
+            return;
+        }
+
+        if (size() > count) {
+            end_ = alloc_range_destroy(begin_ + count, end_);
+        }
+
+        CIEL_POSTCONDITION(size() <= count);
+
+        Iter mid = first + size();
+
+        range_assign(begin_, first, mid);
+        // if mid < last
+        end_ = alloc_range_construct(end_, mid, last);
+
+        CIEL_POSTCONDITION(size() == count);
     }
 
     template<class Iter>
@@ -402,8 +430,7 @@ public:
     }
 
     constexpr auto assign(std::initializer_list<value_type> ilist) -> void {
-        clear_and_get_cap_no_less_than(ilist.size());
-        end_ = alloc_range_construct(begin_, ilist.begin(), ilist.end());
+        assign(ilist.begin(), ilist.end());
     }
 
     [[nodiscard]] constexpr auto get_allocator() const noexcept -> allocator_type {
@@ -673,11 +700,11 @@ public:
         return begin() + index;
     }
 
-    constexpr auto push_back(const T& value) -> void {
+    constexpr auto push_back(const value_type& value) -> void {
         emplace_back(value);
     }
 
-    constexpr auto push_back(T&& value) -> void {
+    constexpr auto push_back(value_type&& value) -> void {
         emplace_back(std::move(value));
     }
 
@@ -751,6 +778,15 @@ template<class T, class Alloc>
     return equal(lhs.begin(), lhs.end(), rhs.begin());
 }
 
+// So that we can test more efficiently
+template<class T, class Alloc>
+[[nodiscard]] constexpr auto operator==(const vector<T, Alloc>& lhs, std::initializer_list<T> rhs) -> bool {
+    if (lhs.size() != rhs.size()) {
+        return false;
+    }
+    return ciel::equal(lhs.begin(), lhs.end(), rhs.begin());
+}
+
 template<class T, class Alloc, class U>
 constexpr auto erase(vector<T, Alloc>& c, const U& value) -> typename vector<T, Alloc>::size_type {
     auto it = ciel::remove(c.begin(), c.end(), value);
@@ -767,7 +803,7 @@ constexpr auto erase_if(vector<T, Alloc>& c, Pred pred) -> typename vector<T, Al
     return r;
 }
 
-template<legacy_input_iterator Iter, class Alloc = allocator<typename iterator_traits<Iter>::value_type>>
+template<class Iter, class Alloc = allocator<typename iterator_traits<Iter>::value_type>>
 vector(Iter, Iter, Alloc = Alloc()) -> vector<typename iterator_traits<Iter>::value_type, Alloc>;
 
 NAMESPACE_CIEL_END

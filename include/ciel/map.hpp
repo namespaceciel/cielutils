@@ -209,17 +209,17 @@ public:
         return emplace(std::move(value));
     }
 
-    auto insert(const_iterator pos, const value_type& value) -> iterator {
+    auto insert(iterator pos, const value_type& value) -> iterator {
         return emplace_hint(pos, value);
     }
 
     template<class P>
         requires is_constructible_v<value_type, P&&>
-    auto insert(const_iterator pos, P&& value) -> iterator {
+    auto insert(iterator pos, P&& value) -> iterator {
         return emplace_hint(pos, std::move(value));
     }
 
-    auto insert(const_iterator pos, value_type&& value) -> iterator {
+    auto insert(iterator pos, value_type&& value) -> iterator {
         return emplace_hint(pos, std::move(value));
     }
 
@@ -256,7 +256,7 @@ public:
 
     template<class M>
         requires is_assignable_v<mapped_type&, M&&>
-    auto insert_or_assign(const_iterator hint, const key_type& k, M&& obj) -> iterator {
+    auto insert_or_assign(iterator hint, const key_type& k, M&& obj) -> iterator {
         if (auto pos = find(k); pos == end()) {
             return emplace_hint(hint, k, std::move(obj));
         } else {
@@ -267,7 +267,7 @@ public:
 
     template<class M>
         requires is_assignable_v<mapped_type&, M&&>
-    auto insert_or_assign(const_iterator hint, key_type&& k, M&& obj) -> iterator {
+    auto insert_or_assign(iterator hint, key_type&& k, M&& obj) -> iterator {
         if (auto pos = find(k); pos == end()) {
             return emplace_hint(hint, std::move(k), std::move(obj));
         } else {
@@ -282,7 +282,7 @@ public:
     }
 
     template<class... Args>
-    auto emplace_hint(const_iterator hint, Args&& ... args) -> iterator {
+    auto emplace_hint(iterator hint, Args&& ... args) -> iterator {
         return tree_.emplace_unique_hint(hint, std::forward<Args>(args)...);
     }
 
@@ -307,7 +307,7 @@ public:
     }
 
     template<class... Args>
-    auto try_emplace(const_iterator hint, const key_type& k, Args&& ... args) -> iterator {
+    auto try_emplace(iterator hint, const key_type& k, Args&& ... args) -> iterator {
         if (auto pos = find(k); pos == end()) {
             return emplace_hint(hint, piecewise_construct, ciel::forward_as_tuple(k),
                                                            ciel::forward_as_tuple(std::forward<Args>(args)...));
@@ -317,7 +317,7 @@ public:
     }
 
     template<class... Args>
-    auto try_emplace(const_iterator hint, key_type&& k, Args&& ... args) -> iterator {
+    auto try_emplace(iterator hint, key_type&& k, Args&& ... args) -> iterator {
         if (auto pos = find(k); pos == end()) {
             return emplace_hint(hint, piecewise_construct, ciel::forward_as_tuple(std::move(k)),
                                                            ciel::forward_as_tuple(std::forward<Args>(args)...));
@@ -330,11 +330,7 @@ public:
         return erase(pos, pos.next());
     }
 
-    auto erase(const_iterator pos) -> iterator {
-        return erase(pos, pos.next());
-    }
-
-    auto erase(const_iterator first, const_iterator last) -> iterator {
+    auto erase(iterator first, iterator last) -> iterator {
         return tree_.erase(first, last);
     }
 
@@ -484,10 +480,9 @@ auto erase_if(map<Key, T, Compare, Alloc>& c, Pred pred) -> typename map<Key, T,
     return old_size - c.size();
 }
 
-template<legacy_input_iterator Iter,
-    class Comp = less<remove_const_t<typename iterator_traits<Iter>::value_type::first_type>>,
-        class Alloc = allocator<pair<add_const_t<typename iterator_traits<Iter>::value_type::first_type>,
-            typename iterator_traits<Iter>::value_type::second_type>>>
+template<class Iter, class Comp = less<remove_const_t<typename iterator_traits<Iter>::value_type::first_type>>,
+         class Alloc = allocator<pair<add_const_t<typename iterator_traits<Iter>::value_type::first_type>,
+                                                  typename iterator_traits<Iter>::value_type::second_type>>>
 map(Iter, Iter, Comp = Comp(), Alloc = Alloc())
     -> map<remove_const_t<typename iterator_traits<Iter>::value_type::first_type>,
         typename iterator_traits<Iter>::value_type::second_type, Comp, Alloc>;
@@ -495,7 +490,7 @@ map(Iter, Iter, Comp = Comp(), Alloc = Alloc())
 template<class Key, class T, class Comp = less<Key>, class Alloc = allocator<pair<const Key, T>>>
 map(std::initializer_list<pair<const Key, T>>, Comp = Comp(), Alloc = Alloc()) -> map<Key, T, Comp, Alloc>;
 
-template<legacy_input_iterator Iter, class Alloc>
+template<class Iter, class Alloc>
 map(Iter, Iter, Alloc)
     -> map<remove_const_t<typename iterator_traits<Iter>::value_type::first_type>,
         typename iterator_traits<Iter>::value_type::second_type,

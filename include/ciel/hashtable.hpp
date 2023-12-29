@@ -508,7 +508,7 @@ public:
     }
 
     [[nodiscard]] auto max_size() const noexcept -> size_type {
-        return numeric_limits<difference_type>::max();
+        return node_alloc_traits::max_size(allocator_);
     }
 
     auto clear() noexcept -> void {
@@ -590,9 +590,9 @@ public:
     }
 
 //  template<class... Args>
-//  iterator emplace_unique_hint(const_iterator hint, Args&& ... args);
+//  iterator emplace_unique_hint(iterator hint, Args&& ... args);
 //  template<class... Args>
-//  iterator emplace_multi_hint(const_iterator hint, Args&& ... args);
+//  iterator emplace_multi_hint(iterator hint, Args&& ... args);
 
     auto erase(iterator pos) noexcept -> iterator {
         iterator res(pos);

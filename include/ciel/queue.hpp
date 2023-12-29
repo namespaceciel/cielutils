@@ -156,14 +156,14 @@ struct uses_allocator<queue<T, Container>, Alloc> : uses_allocator<Container, Al
 template<class Container>
 queue(Container) -> queue<typename Container::value_type, Container>;
 
-template<legacy_input_iterator Iter>
+template<class Iter>
 queue(Iter, Iter) -> queue<typename iterator_traits<Iter>::value_type>;
 
 template<class Container, class Alloc>
     requires uses_allocator_v<Container, Alloc>
 queue(Container, Alloc) -> queue<typename Container::value_type, Container>;
 
-template<legacy_input_iterator Iter, class Alloc>
+template<class Iter, class Alloc>
 queue(Iter, Iter, Alloc)
     -> queue<typename iterator_traits<Iter>::value_type, deque<typename iterator_traits<Iter>::value_type, Alloc>>;
 
@@ -350,8 +350,8 @@ struct uses_allocator<priority_queue<T, Compare, Container>, Alloc> : uses_alloc
 template<class Comp, class Container>
 priority_queue(Comp, Container) -> priority_queue<typename Container::value_type, Container, Comp>;
 
-template<legacy_input_iterator Iter, class Comp = less<typename iterator_traits<Iter>::value_type>,
-    class Container = vector<typename iterator_traits<Iter>::value_type>>
+template<class Iter, class Comp = less<typename iterator_traits<Iter>::value_type>,
+         class Container = vector<typename iterator_traits<Iter>::value_type>>
 priority_queue(Iter, Iter, Comp = Comp(), Container = Container())
     -> priority_queue<typename iterator_traits<Iter>::value_type, Container, Comp>;
 
@@ -359,17 +359,17 @@ template<class Comp, class Container, class Alloc>
     requires uses_allocator_v<Container, Alloc>
 priority_queue(Comp, Container, Alloc) -> priority_queue<typename Container::value_type, Container, Comp>;
 
-template<legacy_input_iterator Iter, class Alloc>
+template<class Iter, class Alloc>
 priority_queue(Iter, Iter, Alloc)
     -> priority_queue<typename iterator_traits<Iter>::value_type,
         vector<typename iterator_traits<Iter>::value_type, Alloc>, less<typename iterator_traits<Iter>::value_type>>;
 
-template<legacy_input_iterator Iter, class Comp, class Alloc>
+template<class Iter, class Comp, class Alloc>
 priority_queue(Iter, Iter, Comp, Alloc)
     -> priority_queue<typename iterator_traits<Iter>::value_type,
         vector<typename iterator_traits<Iter>::value_type, Alloc>, Comp>;
 
-template<legacy_input_iterator Iter, class Comp, class Container, class Alloc>
+template<class Iter, class Comp, class Container, class Alloc>
     requires uses_allocator_v<Container, Alloc>
 priority_queue(Iter, Iter, Comp, Container, Alloc) -> priority_queue<typename Container::value_type, Container, Comp>;
 

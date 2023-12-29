@@ -111,14 +111,14 @@ struct uses_allocator<stack<T, Container>, Alloc> : uses_allocator<Container, Al
 template<class Container>
 stack(Container) -> stack<typename Container::value_type, Container>;
 
-template<legacy_input_iterator Iter>
+template<class Iter>
 stack(Iter, Iter) -> stack<typename iterator_traits<Iter>::value_type>;
 
 template<class Container, class Alloc>
     requires uses_allocator_v<Container, Alloc>
 stack(Container, Alloc) -> stack<typename Container::value_type, Container>;
 
-template<legacy_input_iterator Iter, class Alloc>
+template<class Iter, class Alloc>
 stack(Iter, Iter, Alloc)
     -> stack<typename iterator_traits<Iter>::value_type, deque<typename iterator_traits<Iter>::value_type, Alloc>>;
 

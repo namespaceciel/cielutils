@@ -21,7 +21,6 @@
 #include <ciel/type_traits_impl/remove_cvref.hpp>
 #include <ciel/utility_impl/in_place.hpp>
 #include <cstddef>
-#include <cstdlib>
 #include <variant>  // std::bad_variant_access
 
 NAMESPACE_CIEL_BEGIN

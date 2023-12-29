@@ -71,8 +71,8 @@ TEST(set_tests, constructors_and_assignments) {
 
 TEST(set_tests, insert_and_delete) {
     ciel::set<int> s1;
-    s1.insert({0, 2, 1, 3, 4, 0, 1, 2, 3, 4, 5, 0, 2, 1, 3, 5, 4, 0, 6, 2, 3, 5, 4, 0, 2, 1, 3, 5, 4, 0, 2, 1, 3, 4, 5,
-               5, 0, 2, 1, 3, 4, 5, 2, 3, 0, 5, 4, 1, 2});
+    s1.insert({0, 2, 1, 3, 4, 0, 1, 2, 3, 4, 5, 0, 2, 1, 3, 5, 4, 0, 6, 2, 3, 5, 4, 0, 2, 1, 3, 5, 4, 0, 2, 1, 3,
+                  4, 5, 5, 0, 2, 1, 3, 4, 5, 2, 3, 0, 5, 4, 1, 2});
     s1.emplace_hint(s1.end(), 7);
     s1.emplace_hint(s1.begin(), 8);
     s1.emplace(1);
@@ -107,7 +107,7 @@ TEST(set_tests, find) {
     ASSERT_EQ(*s1.lower_bound(4), 4);
     ASSERT_EQ(*s1.upper_bound(7), 8);
 
-    auto er = s1.equal_range(5);
+    const auto er = s1.equal_range(5);
     ASSERT_EQ(ciel::distance(er.first, er.second), 1);
 }
 

@@ -600,7 +600,7 @@ public:
     }
 
     [[nodiscard]] auto max_size() const noexcept -> size_type {
-        return numeric_limits<difference_type>::max();
+        return node_alloc_traits::max_size(allocator_);
     }
 
     auto clear() noexcept -> void {
@@ -672,7 +672,7 @@ public:
     }
 
     template<class... Args>
-    auto emplace_unique_hint(const_iterator hint, Args&& ... args) -> iterator {
+    auto emplace_unique_hint(iterator hint, Args&& ... args) -> iterator {
         node_type* new_node = allocate_and_construct_node(std::forward<Args>(args)...);
         if (!is_right_insert_multi_place(hint, new_node->value_)) {
             hint = lower_bound(new_node->value_);
@@ -686,7 +686,7 @@ public:
     }
 
     template<class... Args>
-    auto emplace_multi_hint(const_iterator hint, Args&& ... args) -> iterator {
+    auto emplace_multi_hint(iterator hint, Args&& ... args) -> iterator {
         node_type* new_node = allocate_and_construct_node(std::forward<Args>(args)...);
         if (!is_right_insert_multi_place(hint, new_node->value_)) {
             hint = lower_bound(new_node->value_);

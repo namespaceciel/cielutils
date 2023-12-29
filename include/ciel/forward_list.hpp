@@ -386,7 +386,7 @@ public:
     }
 
     [[nodiscard]] auto max_size() const noexcept -> size_type {
-        return numeric_limits<difference_type>::max();
+        return node_alloc_traits::max_size(allocator_);
     }
 
     auto clear() noexcept -> void {
@@ -502,7 +502,7 @@ auto erase_if(forward_list<T, Alloc>& c, Pred pred) -> typename forward_list<T, 
     return c.remove_if(pred);
 }
 
-template<legacy_input_iterator Iter, class Alloc = allocator<typename iterator_traits<Iter>::value_type>>
+template<class Iter, class Alloc = allocator<typename iterator_traits<Iter>::value_type>>
 forward_list(Iter, Iter, Alloc = Alloc()) -> forward_list<typename iterator_traits<Iter>::value_type, Alloc>;
 
 NAMESPACE_CIEL_END

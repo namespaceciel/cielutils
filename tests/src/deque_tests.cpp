@@ -27,170 +27,188 @@ TEST(deque_tests, constructors) {
     const ciel::deque<int> v1;
     ASSERT_TRUE(v1.empty());
     ASSERT_EQ(v1.size(), 0);
+
+    const ciel::deque v2(v1);
+    ASSERT_TRUE(v2.empty());
+
+    const ciel::deque v3(10, 20);
+    ASSERT_EQ(v3.size(), 10);
+
+    const ciel::deque<int> v4(15);
+    ASSERT_EQ(v4.size(), 15);
+
+    ciel::deque v5(v4);
+    ASSERT_EQ(v5.size(), 15);
+
+    const ciel::deque v6(std::move(v5));
+    ASSERT_EQ(v5.size(), 0);
+    ASSERT_EQ(v6.size(), 15);
+
+    const ciel::deque v7({1, 2, 3, 4, 5});
+    ASSERT_EQ(v7.size(), 5);
+
+    const ciel::deque v8(0, 10);
+    ASSERT_TRUE(v8.empty());
+
+    const ciel::deque<int> v9(0);
+    ASSERT_TRUE(v9.empty());
+
+    const ciel::deque v10(v7.begin(), v7.begin());
+    ASSERT_TRUE(v10.empty());
+}
+
+TEST(deque_tests, assignments) {
+    ciel::deque v1({1, 2, 3, 4, 5});
+    ciel::deque<int> v2{};
+
+    v2 = std::move(v1);
+    ASSERT_TRUE(v1.empty());
+    ASSERT_EQ(v2, std::initializer_list<int>({1, 2, 3, 4, 5}));
+
+    ciel::deque<int> v3{};
+    v3 = v2;
+    ASSERT_EQ(v2, v3);
+
+    // expansion
+    v3 = {1 ,2, 3, 4, 5, 6, 7, 8, 9, 10};
+    ASSERT_EQ(v3, std::initializer_list<int>({1, 2, 3, 4, 5, 6, 7, 8, 9, 10}));
+
+    // shrink
+    v3.assign(2, 10);
+    ASSERT_EQ(v3, std::initializer_list<int>({10, 10}));
+
+    // specify SubarraySize to test expansion
+    ciel::deque<int, ciel::allocator<int>, 4> v4({0, 1, 2, 3});
+    v4 = {1 ,2, 3, 4, 5, 6, 7, 8, 9, 10};
+    ASSERT_EQ(v4, std::initializer_list<int>({1, 2, 3, 4, 5, 6, 7, 8, 9, 10}));
+}
+
+TEST(deque_tests, at) {
+    const ciel::deque<size_t> v1({0, 1, 2, 3, 4, 5});
+    for (size_t i = 0; i < v1.size(); ++i) {
+        ASSERT_EQ(v1[i], i);
+    }
+
+    ASSERT_EQ(v1.front(), 0);
+    ASSERT_EQ(v1.back(), 5);
+
+#ifdef CIEL_HAS_EXCEPTIONS
+    ASSERT_THROW((void)v1.at(-1), std::out_of_range);
+#endif
+}
+
+TEST(deque_tests, push_and_pop) {
+    // empty
+    ciel::deque<int> v1;
+    ASSERT_EQ(v1.emplace_back(0), 0);
+
+    v1.push_back(1);
+    ASSERT_EQ(v1.emplace_back(2), 2);
+    ASSERT_EQ(v1, std::initializer_list<int>({0, 1, 2}));
+
+    ASSERT_EQ(v1.emplace_front(3), 3);
+    ASSERT_EQ(v1, std::initializer_list<int>({3, 0, 1, 2}));
+
+    v1.push_front(4);
+    ASSERT_EQ(v1, std::initializer_list<int>({4, 3, 0, 1, 2}));
+
+    ciel::deque v2({0, 1, 2, 3, 4});
+    ASSERT_EQ(v2.emplace_back(5), 5);
+
+    ASSERT_EQ(v2.emplace_back(6), 6);
+    ASSERT_EQ(v2, std::initializer_list<int>({0, 1, 2, 3, 4, 5, 6}));
+
+    ASSERT_EQ(v2.emplace_back(7), 7);
+    ASSERT_EQ(v2.back(), 7);
+
+    v2.pop_back();
+    v2.pop_back();
+    ASSERT_EQ(v2.back(), 5);
+
+    v2.pop_front();
+    ASSERT_EQ(v2.front(), 1);
+
+    // self assignment
+    v2.push_back(v2[2]);
+    ASSERT_EQ(v2.back(), 3);
+
+    v2.push_front(v2[2]);
+    ASSERT_EQ(v2.front(), 3);
 }
 
 TEST(deque_tests, resize) {
-    ciel::deque<int> v1(10);
+    ciel::deque<int, ciel::allocator<int>, 4> v1(10, 5);
     ASSERT_EQ(v1.size(), 10);
-
-    for (const int i: v1) {
-        ASSERT_EQ(i, 0);
-    }
-    for (auto it = v1.begin(); it != v1.end(); ++it) {
-        ASSERT_EQ(*it, 0);
-    }
-    for (auto it = v1.rbegin(); it != v1.rend(); ++it) {
-        ASSERT_EQ(*it, 0);
-    }
-
-    v1.clear();
-    ASSERT_TRUE(v1.empty());
-
-    ciel::deque v2(10, 5);
-    ASSERT_EQ(v2.size(), 10);
-
-    for (const int i: v2) {
-        ASSERT_EQ(i, 5);
-    }
-    for (auto it = v2.begin(); it != v2.end(); ++it) {
-        ASSERT_EQ(*it, 5);
-    }
-    for (auto it = v2.rbegin(); it != v2.rend(); ++it) {
-        ASSERT_EQ(*it, 5);
-    }
-
-    v1 = v2;
-    for (const int i: v1) {
+    for (const int i : v1) {
         ASSERT_EQ(i, 5);
     }
 
-    v1 = std::move(v2);
-    ASSERT_TRUE(v2.empty());
-    for (const int i: v1) {
-        ASSERT_EQ(i, 5);
-    }
-
+    // shrink
     v1.resize(1);
-    ASSERT_EQ(v1, ciel::deque({5}));
+    ASSERT_EQ(v1.size(), 1);
+    ASSERT_EQ(v1.front(), 5);
 
+    // enlarge but not beyond capacity
     v1.resize(10, 77);
-    ASSERT_EQ(v1, ciel::deque({5, 77, 77, 77, 77, 77, 77, 77, 77, 77}));
+    ASSERT_EQ(v1, std::initializer_list<int>({5, 77, 77, 77, 77, 77, 77, 77, 77, 77}));
 
-    v1.pop_back();
-    ASSERT_EQ(v1, ciel::deque({5, 77, 77, 77, 77, 77, 77, 77, 77}));
-
-    v1.push_back(123);
-    ASSERT_EQ(v1, ciel::deque({5, 77, 77, 77, 77, 77, 77, 77, 77, 123}));
-
+    // enlarge beyond capacity
     v1.shrink_to_fit();
-    ASSERT_EQ(v1.size(), 10);
+    v1.resize(12, 44);
+    ASSERT_EQ(v1, std::initializer_list<int>({5, 77, 77, 77, 77, 77, 77, 77, 77, 77, 44, 44}));
+}
 
-    v1.emplace_back(987);
-    ASSERT_EQ(v1, ciel::deque({5, 77, 77, 77, 77, 77, 77, 77, 77, 123, 987}));
+TEST(deque_tests, insert_and_emplace) {
+    ciel::deque<int, ciel::allocator<int>, 4> v1{0, 1, 2, 3, 4, 5, 6};
 
-    v1.push_back(v1.size());
-    ASSERT_EQ(v1, ciel::deque({5, 77, 77, 77, 77, 77, 77, 77, 77, 123, 987, 11}));
+    // insert at front
+    ASSERT_EQ(*v1.insert(v1.begin(), 21), 21);
+    ASSERT_EQ(*v1.emplace(v1.begin(), 22), 22);
 
+    // insert at back
+    ASSERT_EQ(*v1.insert(v1.end(), 31), 31);
+    ASSERT_EQ(*v1.emplace(v1.end(), 32), 32);
+
+    // insert at left and right half
+    ASSERT_EQ(*v1.insert(v1.begin() + 1, 2, 41), 41);
+    ASSERT_EQ(*v1.insert(v1.end() - 3, {42, 43}), 43);
+
+    // insert empty range
+    ASSERT_EQ(*v1.insert(v1.begin(), v1.begin(), v1.begin()), 22);
+
+    ASSERT_EQ(v1, std::initializer_list<int>({22, 41, 41, 21, 0, 1, 2, 3, 4, 5, 42, 43, 6, 31, 32}));
+
+    // insert when expansion
     v1.shrink_to_fit();
-    v1.push_back(v1[0]);    // self assignment
-    ASSERT_EQ(v1, ciel::deque({5, 77, 77, 77, 77, 77, 77, 77, 77, 123, 987, 11, 5}));
+    ASSERT_EQ(*v1.insert(v1.begin() + 2, 4, 99), 99);
+    ASSERT_EQ(v1, std::initializer_list<int>({22, 41, 99, 99, 99, 99, 41, 21, 0, 1, 2, 3, 4, 5, 42, 43, 6, 31, 32}));
+
+    // insert self range when expansion
+    v1.shrink_to_fit();
+    ASSERT_EQ(*v1.insert(v1.begin() + 2, v1.begin() + 1, v1.begin() + 5), 99);
+    ASSERT_EQ(v1, std::initializer_list<int>({22, 41, 41, 99, 99, 99, 99, 99, 99, 99, 41, 21, 0, 1, 2, 3, 4, 5, 42, 43,
+                                              6, 31, 32}));
 }
 
-TEST(deque_tests, resize2) {
-    ciel::deque v1{654};
-
-    v1.push_back(v1[0]);    // self assignment
-    ASSERT_EQ(v1, ciel::deque({654, 654}));
-
-    v1.resize(5000, 654);
-    ASSERT_EQ(v1.size(), 5000);
-    for (const int i: v1) {
-        ASSERT_EQ(i, 654);
-    }
-}
-
-TEST(deque_tests, push_front_and_back) {
-    ciel::deque v1{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-    for (size_t i = 0; i < v1.size(); ++i) {
-        ASSERT_EQ(v1[i], i);
-        ASSERT_EQ(v1.at(i), i);
-    }
-
-    ciel::deque v2(v1.begin(), v1.end() - 2);
-    ASSERT_EQ(v2.size(), 8);
-
-    for (size_t i = 0; i < v2.size(); ++i) {
-        ASSERT_EQ(v2[i], i);
-    }
-    ASSERT_EQ(v2.front(), 0);
-    ASSERT_EQ(v2.back(), 7);
-
-    ciel::deque v3(std::move(v1));
-    for (size_t i = 0; i < v3.size(); ++i) {
-        ASSERT_EQ(v3[i], i);
-    }
-
-    ciel::deque<size_t> v4;
-    for (size_t i = 2000; i < 3000; ++i) {
-        v4.push_back(i);
-    }
-    for (size_t i = 1999; i > 1000; --i) {
-        v4.push_front(i);
-    }
-    for (size_t i = 3000; i < 4000; ++i) {
-        v4.push_back(i);
-    }
-    for (size_t i = 1000; i > 0; --i) {
-        v4.push_front(i);
-    }
-    v4.push_front(0ul);
-    for (size_t i = 0; i < v4.size(); ++i) {
-        ASSERT_EQ(v4[i], i);
-    }
-}
-
-TEST(deque_tests, insert_and_erase) {
+TEST(deque_tests, erase) {
     ciel::deque v1{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 
-    v1.erase(v1.begin());
-    ASSERT_EQ(v1, ciel::deque({1, 2, 3, 4, 5, 6, 7, 8, 9}));
+    ASSERT_EQ(*v1.erase(v1.begin()), 1);
+    ASSERT_EQ(v1, std::initializer_list<int>({1, 2, 3, 4, 5, 6, 7, 8, 9}));
 
-    v1.erase(v1.begin() + 4, v1.begin() + 7);
-    ASSERT_EQ(v1, ciel::deque({1, 2, 3, 4, 8, 9}));
+    ASSERT_EQ(*v1.erase(v1.begin() + 2, v1.begin() + 4), 5);
+    ASSERT_EQ(v1, std::initializer_list<int>({1, 2, 5, 6, 7, 8, 9}));
 
-    v1.emplace(v1.begin(), 8);
-    ASSERT_EQ(v1, ciel::deque({8, 1, 2, 3, 4, 8, 9}));
+    // You can't ensure this eval_order, v1.end() may be calculated before erasing
+    // ASSERT_EQ(v1.erase(v1.end() - 1), v1.end());
 
-    v1.insert(v1.begin() + 1, {4, 3, 2});
-    ASSERT_EQ(v1, ciel::deque({8, 4, 3, 2, 1, 2, 3, 4, 8, 9}));
+    auto res = v1.erase(v1.end() - 1);
+    ASSERT_EQ(res, v1.end());
+    ASSERT_EQ(v1, std::initializer_list<int>({1, 2, 5, 6, 7, 8}));
 
-    ciel::deque v2{123, 543, 12};
-    v1.insert(v1.end(), v2.begin(), v2.begin());    // empty range
-    ASSERT_EQ(v1, ciel::deque({8, 4, 3, 2, 1, 2, 3, 4, 8, 9}));
-
-    v1.insert(v1.end() - 1, v2.begin() + 1, v2.end());
-    ASSERT_EQ(v1, ciel::deque({8, 4, 3, 2, 1, 2, 3, 4, 8, 543, 12, 9}));
-
-    v1.insert(v1.begin() + 2, 3, 222);
-    ASSERT_EQ(v1, ciel::deque({8, 4, 222, 222, 222, 3, 2, 1, 2, 3, 4, 8, 543, 12, 9}));
-
-    ciel::deque<int> v3;
-    v3.insert(v3.begin(), v1.begin(), v1.end());
-    ASSERT_EQ(v3, ciel::deque({8, 4, 222, 222, 222, 3, 2, 1, 2, 3, 4, 8, 543, 12, 9}));
-
-    v3.insert(v3.end(), v1.begin(), v1.end());
-    ASSERT_EQ(v3, ciel::deque({8, 4, 222, 222, 222, 3, 2, 1, 2, 3, 4, 8, 543, 12, 9, 8, 4, 222, 222, 222, 3, 2, 1, 2,
-                               3, 4, 8, 543, 12, 9}));
-
-    v3.insert(v3.end() - 2, 4, 9876);
-    ASSERT_EQ(v3, ciel::deque({8, 4, 222, 222, 222, 3, 2, 1, 2, 3, 4, 8, 543, 12, 9, 8, 4, 222, 222, 222, 3, 2, 1, 2,
-                               3, 4, 8, 543, 9876, 9876, 9876, 9876, 12, 9}));
-
-    v3.insert(v3.begin() + 3, 6, 7890);
-    ASSERT_EQ(v3, ciel::deque({8, 4, 222, 7890, 7890, 7890, 7890, 7890, 7890, 222, 222, 3, 2, 1, 2, 3, 4, 8, 543, 12,
-                                  9, 8, 4, 222, 222, 222, 3, 2, 1, 2, 3, 4, 8, 543, 9876, 9876, 9876, 9876, 12, 9}));
-
-//  v1.insert(v1.begin(), v1.begin() + 1, v1.begin() + 3);    // not allowed
+    res = v1.erase(v1.end() - 2, v1.end());
+    ASSERT_EQ(res, v1.end());
+    ASSERT_EQ(v1, std::initializer_list<int>({1, 2, 5, 6}));
 }
 
 TEST(deque_tests, copy_and_move_behavior) {
@@ -276,7 +294,7 @@ TEST(deque_tests, copy_and_move_behavior3) {
     v1.insert(v1.begin(), ConstructAndAssignCounter{});
     ASSERT_EQ(ConstructAndAssignCounter::copy, 0);
 
-    const ConstructAndAssignCounter tmp;
+    constexpr ConstructAndAssignCounter tmp;
     v1.insert(v1.begin(), tmp);
     ASSERT_EQ(ConstructAndAssignCounter::copy, 1);
 

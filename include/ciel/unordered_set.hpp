@@ -178,11 +178,11 @@ public:
         return emplace(std::move(value));
     }
 
-//  iterator insert(const_iterator hint, const value_type& value) {
+//  iterator insert(iterator hint, const value_type& value) {
 //      return emplace_hint(hint, value);
 //  }
 //
-//  iterator insert(const_iterator hint, value_type&& value) {
+//  iterator insert(iterator hint, value_type&& value) {
 //      return emplace_hint(hint, std::move(value));
 //  }
 
@@ -200,18 +200,14 @@ public:
         return table_.emplace_unique(std::forward<Args>(args)...);
     }
 
-//        template<class... Args>
-//        iterator emplace_hint(const_iterator hint, Args&&... args);
+//  template<class... Args>
+//  iterator emplace_hint(iterator hint, Args&&... args);
 
     auto erase(iterator pos) -> iterator {
         return table_.erase(pos);
     }
 
-    auto erase(const_iterator pos) -> iterator {
-        return table_.erase(pos);
-    }
-
-    auto erase(const_iterator first, const_iterator last) -> iterator {
+    auto erase(iterator first, iterator last) -> iterator {
         return table_.erase(first, last);
     }
 
@@ -390,10 +386,9 @@ auto erase_if(unordered_set<Key, Hash, KeyEqual, Alloc>& c, Pred pred)
     return old_size - c.size();
 }
 
-template<legacy_input_iterator Iter,
-    class Hash = std::hash<typename iterator_traits<Iter>::value_type>,
-        class Pred = equal_to<typename iterator_traits<Iter>::value_type>,
-            class Alloc = allocator<typename iterator_traits<Iter>::value_type>>
+template<class Iter, class Hash = std::hash<typename iterator_traits<Iter>::value_type>,
+         class Pred = equal_to<typename iterator_traits<Iter>::value_type>,
+         class Alloc = allocator<typename iterator_traits<Iter>::value_type>>
 unordered_set(Iter, Iter,
               typename allocator_traits<Alloc>::size_type = 0,
               Hash = Hash(), Pred = Pred(), Alloc = Alloc())
@@ -405,13 +400,13 @@ unordered_set(std::initializer_list<T>,
               Hash = Hash(), Pred = Pred(), Alloc = Alloc())
     -> unordered_set<T, Hash, Pred, Alloc>;
 
-template<legacy_input_iterator Iter, class Alloc>
+template<class Iter, class Alloc>
 unordered_set(Iter, Iter, typename allocator_traits<Alloc>::size_type, Alloc)
     -> unordered_set<typename iterator_traits<Iter>::value_type,
                      std::hash<typename iterator_traits<Iter>::value_type>,
                      equal_to<typename iterator_traits<Iter>::value_type>, Alloc>;
 
-template<legacy_input_iterator Iter, class Hash, class Alloc>
+template<class Iter, class Hash, class Alloc>
 unordered_set(Iter, Iter, typename allocator_traits<Alloc>::size_type, Hash, Alloc)
     -> unordered_set<typename iterator_traits<Iter>::value_type, Hash,
                      equal_to<typename iterator_traits<Iter>::value_type>, Alloc>;

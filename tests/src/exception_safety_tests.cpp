@@ -169,7 +169,7 @@ TEST(exception_safety_tests, vector_basic) {
         BASIC_TEST_CASE(v.emplace_back(1));
 
         BASIC_TEST_CASE(v.erase(v.begin() + g() % ciel::max<size_t>(v.size(), 1),
-                                       v.begin() + g() % ciel::max<size_t>(v.size(), 1)));
+                                v.begin() + g() % ciel::max<size_t>(v.size(), 1)));
 
         BASIC_TEST_CASE(v.insert(v.begin() + g() % ciel::max<size_t>(v.size(), 1), il));
     }
@@ -328,7 +328,7 @@ TEST(exception_safety_tests, split_buffer_basic) {
     // Throw lots of exceptions and use valgrind checking for memory leaks
 
     ciel::split_buffer<NothrowMoveStruct> v;
-    can_throw = false;
+    can_throw = true;
 
     for (size_t i = 0; i < 10000; ++i) {
         // Use random numbers to insert or erase at any position in v: v.begin() + g() % ciel::max<size_t>(v.size(), 1)

@@ -154,11 +154,11 @@ public:
         return emplace(std::move(value));
     }
 
-    auto insert(const_iterator hint, const value_type& value) -> iterator {
+    auto insert(iterator hint, const value_type& value) -> iterator {
         return emplace_hint(hint, value);
     }
 
-    auto insert(const_iterator hint, value_type&& value) -> iterator {
+    auto insert(iterator hint, value_type&& value) -> iterator {
         return emplace_hint(hint, std::move(value));
     }
 
@@ -177,7 +177,7 @@ public:
     }
 
     template<class... Args>
-    auto emplace_hint(const_iterator hint, Args&& ... args) -> iterator {
+    auto emplace_hint(iterator hint, Args&& ... args) -> iterator {
         return tree_.emplace_unique_hint(hint, std::forward<Args>(args)...);
     }
 
@@ -185,11 +185,7 @@ public:
         return erase(pos, pos.next());
     }
 
-    auto erase(const_iterator pos) -> iterator {
-        return erase(pos, pos.next());
-    }
-
-    auto erase(const_iterator first, const_iterator last) -> iterator {
+    auto erase(iterator first, iterator last) -> iterator {
         return tree_.erase(first, last);
     }
 
@@ -339,15 +335,14 @@ auto erase_if(set<Key, Compare, Alloc>& c, Pred pred) -> typename set<Key, Compa
     return old_size - c.size();
 }
 
-template<legacy_input_iterator Iter,
-    class Comp = less<typename iterator_traits<Iter>::value_type>,
-        class Alloc = allocator<typename iterator_traits<Iter>::value_type>>
+template<class Iter, class Comp = less<typename iterator_traits<Iter>::value_type>,
+         class Alloc = allocator<typename iterator_traits<Iter>::value_type>>
 set(Iter, Iter, Comp = Comp(), Alloc = Alloc()) -> set<typename iterator_traits<Iter>::value_type, Comp, Alloc>;
 
 template<class Key, class Comp = less<Key>, class Alloc = allocator<Key>>
 set(std::initializer_list<Key>, Comp = Comp(), Alloc = Alloc()) -> set<Key, Comp, Alloc>;
 
-template<legacy_input_iterator Iter, class Alloc>
+template<class Iter, class Alloc>
 set(Iter, Iter, Alloc)
     -> set<typename iterator_traits<Iter>::value_type, less<typename iterator_traits<Iter>::value_type>, Alloc>;
 

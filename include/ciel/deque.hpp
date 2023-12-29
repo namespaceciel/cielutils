@@ -134,8 +134,14 @@ public:
             cur_ += n;
         } else {
             advance(node_, offset > 0 ? offset / static_cast<difference_type>(SubarraySize) :
-                                        offset / static_cast<difference_type>(SubarraySize) - 1);
-            offset %= SubarraySize;
+                                     (offset + 1) / static_cast<difference_type>(SubarraySize) - 1);
+            offset %= static_cast<difference_type>(SubarraySize);
+            if (offset < 0) {
+                offset += static_cast<difference_type>(SubarraySize);
+            }
+
+            CIEL_POSTCONDITION(offset >= 0);
+
             cur_ = start() + offset;
         }
         return *this;
@@ -268,16 +274,19 @@ private:
         }
     }
 
-    auto clear_and_get_cap_no_less_than(const size_type size) -> void {
-        clear();
-        begin_offset_ = 0;
+    constexpr auto range_assign_n(iterator begin, const size_type n, const value_type& value) -> void {
+        for (size_type i = 0; i < n; ++i) {
+            *begin = value;
+            ++begin;
+        }
+    }
 
-        size_type s = size / SubarraySize + 1;
-        if (map_.size() < s) {
-            s -= map_.size();
-            while (s-- > 0) {
-                map_.emplace_back(subarray_type(alloc_traits::allocate(allocator_, SubarraySize), allocator_));
-            }
+    template<class Iter>
+    constexpr auto range_assign(iterator begin, Iter first, Iter last) -> void {
+        while (first != last) {
+            *begin = *first;
+            ++first;
+            ++begin;
         }
     }
 
@@ -295,36 +304,6 @@ private:
         return res;
     }
 
-//  Was used in insert and emplace
-//
-//  auto alloc_range_move(iterator begin, iterator first, iterator last) noexcept -> iterator {
-//      iterator end = begin;
-//      iterator boundary = first;
-//
-//      while (first != last && end != boundary) {
-//          alloc_traits::construct(allocator_, (end++).base(), std::move(*first++));
-//      }
-//
-//      while (first != last) {
-//          *begin++ = std::move(*first++);
-//      }
-//      return begin;
-//  }
-//
-//  auto alloc_range_move_backward(iterator end, iterator first, iterator last) noexcept -> iterator {
-//      iterator begin = end;
-//      iterator boundary = last;
-//
-//      while (first != last && begin != boundary) {
-//          alloc_traits::construct(allocator_, (--begin).base(), std::move(*--last));
-//      }
-//
-//      while (first != last) {
-//          *--begin = std::move(*--last);
-//      }
-//      return end;
-//  }
-
     // Check which endpoint is pos close to
     template<class Arg>
     auto insert_n(iterator pos, const size_type count, Arg&& arg) -> iterator {
@@ -336,7 +315,7 @@ private:
 
             get_enough_front_spare(count);
 
-            CIEL_PRECONDITION(begin_offset_ >= count);
+            CIEL_PRECONDITION(front_spare() >= count);
 
             alloc_range_construct_n(begin() - count, count, std::forward<Arg>(arg));
 
@@ -344,21 +323,24 @@ private:
             begin_offset_ -= count;
 
             rotate(begin(), old_begin, pos);
-            return pos - 1;
+            return --pos;
 
         } else {    // move right half to right
 
             get_enough_back_spare(count);
 
+            CIEL_PRECONDITION(back_spare() >= count);
+
             iterator old_end = end();
             alloc_range_construct_n(end(), count, std::forward<Arg>(arg));
+
             return rotate(pos, old_end, end()) - 1;
         }
     }
 
     auto get_enough_front_spare(const size_type count) -> void {
         if (size_type fs = front_spare(); count > fs) {
-            fs = (count - fs) / SubarraySize + 1;   // blocks of memory we need
+            fs = (count - fs - 1) / SubarraySize + 1;   // blocks of memory we need
 
             // Check if we can use back spare
             size_type bs = back_spare();
@@ -382,8 +364,8 @@ private:
     }
 
     auto get_enough_back_spare(const size_type count) -> void {
-        if (size_type bs = back_spare(); count >= bs) {
-            bs = (count - bs) / SubarraySize + 1;
+        if (size_type bs = back_spare(); count > bs) {
+            bs = (count - bs - 1) / SubarraySize + 1;
 
             // Check if we can use front spare
             size_type fs = front_spare();
@@ -494,17 +476,17 @@ public:
         if (this == addressof(other)) {
             return *this;
         }
+
         if (alloc_traits::propagate_on_container_copy_assignment::value) {
             if (allocator_ != other.allocator_) {
                 deque(other.allocator_).swap(*this);
-                clear_and_get_cap_no_less_than(other.size());
-                alloc_range_construct(begin(), other.begin(), other.end());
+                assign(other.begin(), other.end());
                 return *this;
             }
+
             allocator_ = other.allocator_;
         }
-        clear_and_get_cap_no_less_than(other.size());
-        alloc_range_construct(begin(), other.begin(), other.end());
+        assign(other.begin(), other.end());
         return *this;
     }
 
@@ -512,11 +494,12 @@ public:
         if (this == addressof(other)) {
             return *this;
         }
+
         if (!alloc_traits::propagate_on_container_move_assignment::value && allocator_ != other.allocator_) {
-            clear_and_get_cap_no_less_than(other.size());
-            alloc_range_construct(begin(), other.begin(), other.end());
+            assign(other.begin(), other.end());
             return *this;
         }
+
         if (alloc_traits::propagate_on_container_move_assignment::value) {
             allocator_ = std::move(other.allocator_);
         }
@@ -526,14 +509,26 @@ public:
     }
 
     auto operator=(std::initializer_list<T> ilist) -> deque& {
-        clear_and_get_cap_no_less_than(ilist.size());
-        alloc_range_construct(begin(), ilist.begin(), ilist.end());
+        assign(ilist.begin(), ilist.end());
         return *this;
     }
 
     auto assign(const size_type count, const T& value) -> void {
-        clear_and_get_cap_no_less_than(count);
-        alloc_range_construct_n(begin(), count, value);
+        if (back_spare() + size() < count) {
+            get_enough_back_spare(count - size());
+
+            CIEL_POSTCONDITION(back_spare() + size() >= count);
+        } else if (size() > count) {
+            alloc_range_destroy(begin() + count, end());;
+        }
+
+        CIEL_POSTCONDITION(size() <= count);
+
+        range_assign_n(begin(), size(), value);
+        // if count > size()
+        alloc_range_construct_n(end(), count - size(), value);
+
+        CIEL_POSTCONDITION(size() == count);
     }
 
     template<class Iter>
@@ -550,13 +545,29 @@ public:
     template<class Iter>
         requires is_forward_iterator<Iter>::value
     auto assign(Iter first, Iter last) -> void {
-        clear_and_get_cap_no_less_than(ciel::distance(first, last));
-        alloc_range_construct(begin(), first, last);
+        const size_type count = ciel::distance(first, last);
+
+        if (back_spare() + size() < count) {
+            get_enough_back_spare(count - size());
+
+            CIEL_POSTCONDITION(back_spare() + size() >= count);
+        } else if (size() > count) {
+            alloc_range_destroy(begin() + count, end());;
+        }
+
+        CIEL_POSTCONDITION(size() <= count);
+
+        Iter mid = first + size();
+
+        range_assign(begin(), first, mid);
+        // if mid < last
+        alloc_range_construct(end(), mid, last);
+
+        CIEL_POSTCONDITION(size() == count);
     }
 
     auto assign(std::initializer_list<T> ilist) -> void {
-        clear_and_get_cap_no_less_than(ilist.size());
-        alloc_range_construct(begin(), ilist.begin(), ilist.end());
+        assign(ilist.begin(), ilist.end());
     }
 
     [[nodiscard]] auto get_allocator() const noexcept -> allocator_type {
@@ -670,7 +681,7 @@ public:
     }
 
     [[nodiscard]] auto max_size() const noexcept -> size_type {
-        return numeric_limits<difference_type>::max();
+        return alloc_traits::max_size(allocator_);
     }
 
     auto shrink_to_fit() noexcept -> void {
@@ -678,8 +689,11 @@ public:
             map_.pop_front();
             begin_offset_ -= SubarraySize;
         }
-        while (map_.end().prev() != end().node_) {
+
+        auto bs = back_spare();
+        while (bs >= SubarraySize) {
             map_.pop_back();
+            bs -= SubarraySize;
         }
     }
 
@@ -687,15 +701,15 @@ public:
         alloc_range_destroy(begin(), end());
     }
 
-    auto insert(iterator pos, const T& value) -> iterator {
+    auto insert(iterator pos, const value_type& value) -> iterator {
         return insert_n(pos, 1, value);
     }
 
-    auto insert(iterator pos, T&& value) -> iterator {
+    auto insert(iterator pos, value_type&& value) -> iterator {
         return insert_n(pos, 1, std::move(value));
     }
 
-    auto insert(iterator pos, const size_type count, const T& value) -> iterator {
+    auto insert(iterator pos, const size_type count, const value_type& value) -> iterator {
         return insert_n(pos, count, value);
     }
 
@@ -729,7 +743,7 @@ public:
 
             get_enough_front_spare(count);
 
-            CIEL_PRECONDITION(begin_offset_ >= static_cast<size_type>(count));
+            CIEL_PRECONDITION(front_spare() >= static_cast<size_type>(count));
 
             alloc_range_construct(begin() - count, first, last);
 
@@ -737,14 +751,17 @@ public:
             begin_offset_ -= count;
 
             rotate(begin(), old_begin, pos);
-            return pos - 1;
+            return --pos;
 
         } else {    // move right half to right
 
             get_enough_back_spare(count);
 
+            CIEL_PRECONDITION(back_spare() >= static_cast<size_type>(count));
+
             iterator old_end = end();
             alloc_range_construct(end(), first, last);
+
             return rotate(pos, old_end, end()) - 1;
         }
     }
@@ -806,11 +823,11 @@ public:
         return begin() + begin_first_distance;
     }
 
-    auto push_back(const T& value) -> void {
+    auto push_back(const value_type& value) -> void {
         emplace_back(value);
     }
 
-    auto push_back(T&& value) -> void {
+    auto push_back(value_type&& value) -> void {
         emplace_back(std::move(value));
     }
 
@@ -827,11 +844,11 @@ public:
         alloc_range_destroy(--end(), end());
     }
 
-    auto push_front(const T& value) -> void {
+    auto push_front(const value_type& value) -> void {
         emplace_front(value);
     }
 
-    auto push_front(T&& value) -> void {
+    auto push_front(value_type&& value) -> void {
         emplace_front(std::move(value));
     }
 
@@ -888,12 +905,21 @@ public:
 
 };    // class deque
 
-template<class T, class Alloc>
-[[nodiscard]] constexpr auto operator==(const deque<T, Alloc>& lhs, const deque<T, Alloc>& rhs) -> bool {
+template<class T, class Alloc, size_t Size1, size_t Size2>
+[[nodiscard]] constexpr auto operator==(const deque<T, Alloc, Size1>& lhs, const deque<T, Alloc, Size2>& rhs) -> bool {
     if (lhs.size() != rhs.size()) {
         return false;
     }
     return equal(lhs.begin(), lhs.end(), rhs.begin());
+}
+
+// So that we can test more efficiently
+template<class T, class Alloc, size_t Size>
+[[nodiscard]] constexpr auto operator==(const deque<T, Alloc, Size>& lhs, std::initializer_list<T> rhs) -> bool {
+    if (lhs.size() != rhs.size()) {
+        return false;
+    }
+    return ciel::equal(lhs.begin(), lhs.end(), rhs.begin());
 }
 
 template<class T, class Alloc, class U>
@@ -912,7 +938,7 @@ auto erase_if(deque<T, Alloc>& c, Pred pred) -> typename deque<T, Alloc>::size_t
     return r;
 }
 
-template<legacy_input_iterator Iter, class Alloc = allocator<typename iterator_traits<Iter>::value_type>>
+template<class Iter, class Alloc = allocator<typename iterator_traits<Iter>::value_type>>
 deque(Iter, Iter, Alloc = Alloc()) -> deque<typename iterator_traits<Iter>::value_type, Alloc>;
 
 NAMESPACE_CIEL_END

@@ -447,44 +447,44 @@ public:
     }
 
     [[nodiscard]] auto max_size() const noexcept -> size_type {
-        return numeric_limits<difference_type>::max();
+        return node_alloc_traits::max_size(allocator_);
     }
 
     auto clear() noexcept -> void {
         alloc_range_destroy_and_deallocate(begin(), end());
     }
 
-    auto insert(const_iterator pos, const T& value) -> iterator {
+    auto insert(iterator pos, const T& value) -> iterator {
         return alloc_range_allocate_and_construct_n(pos, 1, value);
     }
 
-    auto insert(const_iterator pos, T&& value) -> iterator {
+    auto insert(iterator pos, T&& value) -> iterator {
         return alloc_range_allocate_and_construct_n(pos, 1, std::move(value));
     }
 
-    auto insert(const_iterator pos, const size_type count, const T& value) -> iterator {
+    auto insert(iterator pos, const size_type count, const T& value) -> iterator {
         return alloc_range_allocate_and_construct_n(pos, count, value);
     }
 
     template<legacy_input_iterator Iter>
-    auto insert(const_iterator pos, Iter first, Iter last) -> iterator {
+    auto insert(iterator pos, Iter first, Iter last) -> iterator {
         return alloc_range_allocate_and_construct(pos, first, last);
     }
 
-    auto insert(const_iterator pos, std::initializer_list<T> ilist) -> iterator {
+    auto insert(iterator pos, std::initializer_list<T> ilist) -> iterator {
         return alloc_range_allocate_and_construct(pos, ilist.begin(), ilist.end());
     }
 
     template<class... Args>
-    auto emplace(const_iterator pos, Args&& ... args) -> iterator {
+    auto emplace(iterator pos, Args&& ... args) -> iterator {
         return alloc_range_allocate_and_construct_n(pos, 1, std::forward<Args>(args)...);
     }
 
-    auto erase(const_iterator pos) -> iterator {
+    auto erase(iterator pos) -> iterator {
         return alloc_range_destroy_and_deallocate(pos, pos.next());
     }
 
-    auto erase(const_iterator first, const_iterator last) -> iterator {
+    auto erase(iterator first, iterator last) -> iterator {
         return alloc_range_destroy_and_deallocate(first, last);
     }
 
@@ -579,7 +579,7 @@ auto erase_if(list<T, Alloc>& c, Pred pred) -> typename list<T, Alloc>::size_typ
     return c.remove_if(pred);
 }
 
-template<legacy_input_iterator Iter, class Alloc = allocator<typename iterator_traits<Iter>::value_type>>
+template<class Iter, class Alloc = allocator<typename iterator_traits<Iter>::value_type>>
 list(Iter, Iter, Alloc = Alloc()) -> list<typename iterator_traits<Iter>::value_type, Alloc>;
 
 NAMESPACE_CIEL_END
