@@ -14,8 +14,13 @@ target_include_directories(cielutils INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/inclu
 string(COMPARE EQUAL ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_SOURCE_DIR} PROJECT_IS_TOP_LEVEL)
 
 option(CIELUTILS_BUILD_TESTS "Build unit tests" ${PROJECT_IS_TOP_LEVEL})
+option(CIELUTILS_BUILD_BENCHMARKS "Build benchmarks" ${PROJECT_IS_TOP_LEVEL})
 
 if (CIELUTILS_BUILD_TESTS)
     enable_testing()
-    add_subdirectory(tests)
+    add_subdirectory(test)
+endif ()
+
+if (CIELUTILS_BUILD_BENCHMARKS)
+    add_subdirectory(benchmark)
 endif ()

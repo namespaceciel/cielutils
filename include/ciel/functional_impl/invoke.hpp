@@ -5,6 +5,7 @@
 #include <ciel/memory_impl/addressof.hpp>
 #include <ciel/type_traits_impl/decay.hpp>
 #include <ciel/type_traits_impl/is_base_of.hpp>
+#include <ciel/type_traits_impl/is_convertible.hpp>
 #include <ciel/type_traits_impl/is_member_pointer.hpp>
 #include <ciel/type_traits_impl/is_same.hpp>
 #include <ciel/type_traits_impl/is_void.hpp>
@@ -102,7 +103,7 @@ template<class, class, class...>
 struct is_invocable_r : false_type {};
 
 template<class R, class Fn, class... ArgTypes>
-    requires requires { INVOKE<R>(declval<Fn>(), declval<ArgTypes>()...); }
+    requires is_convertible_v<decltype(INVOKE(declval<Fn>(), declval<ArgTypes>()...)), R>
 struct is_invocable_r<R, Fn, ArgTypes...> : true_type {};
 
 template<class, class...>
