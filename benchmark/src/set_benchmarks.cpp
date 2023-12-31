@@ -91,7 +91,7 @@ static void set_erase_std(benchmark::State& state) {
     std::random_device rd;
     std::mt19937_64 g(rd());
 
-    for (int i = 0; i < 1000; ++i) {
+    for (int i = 0; i < 10000; ++i) {
         s.insert(g());
     }
 
@@ -105,7 +105,7 @@ static void set_erase_eastl(benchmark::State& state) {
     std::random_device rd;
     std::mt19937_64 g(rd());
 
-    for (int i = 0; i < 1000; ++i) {
+    for (int i = 0; i < 10000; ++i) {
         s.insert(g());
     }
 
@@ -119,7 +119,7 @@ static void set_erase_ciel(benchmark::State& state) {
     std::random_device rd;
     std::mt19937_64 g(rd());
 
-    for (int i = 0; i < 1000; ++i) {
+    for (int i = 0; i < 10000; ++i) {
         s.insert(g());
     }
 
@@ -140,7 +140,6 @@ BENCHMARK(set_find_std);
 BENCHMARK(set_find_eastl);
 BENCHMARK(set_find_ciel);
 
-// FIXME
-// BENCHMARK(set_erase_std);
-// BENCHMARK(set_erase_eastl);
-// BENCHMARK(set_erase_ciel);
+BENCHMARK(set_erase_std);
+BENCHMARK(set_erase_eastl);
+BENCHMARK(set_erase_ciel);

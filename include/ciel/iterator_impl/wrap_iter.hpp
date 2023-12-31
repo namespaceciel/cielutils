@@ -97,6 +97,10 @@ public:
         return it;
     }
 
+    [[nodiscard]] explicit operator bool() const noexcept {
+        return base() != nullptr;
+    }
+
 };    // class wrap_iter
 
 template<class Iter1, class Iter2>

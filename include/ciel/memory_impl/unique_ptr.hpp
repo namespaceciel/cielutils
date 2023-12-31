@@ -465,10 +465,11 @@ template<class Alloc>
 struct allocator_destructor {
 private:
     using pointer = typename allocator_traits<Alloc>::pointer;
-    Alloc& alloc_;
+    Alloc alloc_;
 
 public:
-    explicit allocator_destructor(Alloc& a) noexcept : alloc_(a) {}
+    explicit allocator_destructor(const Alloc& a) noexcept : alloc_(a) {}
+
     auto operator()(pointer p) noexcept -> void {
         allocator_traits<Alloc>::deallocate(alloc_, p, 1);
     }

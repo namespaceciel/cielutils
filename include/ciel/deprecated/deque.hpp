@@ -1,5 +1,5 @@
-#ifndef CIELUTILS_INCLUDE_CIEL_DEQUE_HPP_
-#define CIELUTILS_INCLUDE_CIEL_DEQUE_HPP_
+#ifndef CIELUTILS_INCLUDE_CIEL_DEPRECATED_DEQUE_HPP_
+#define CIELUTILS_INCLUDE_CIEL_DEPRECATED_DEQUE_HPP_
 
 #include <ciel/algorithm_impl/move.hpp>
 #include <ciel/algorithm_impl/move_backward.hpp>
@@ -7,22 +7,27 @@
 #include <ciel/algorithm_impl/remove_if.hpp>
 #include <ciel/algorithm_impl/rotate.hpp>
 #include <ciel/config.hpp>
+#include <ciel/list.hpp>
 #include <ciel/memory_impl/to_address.hpp>
 #include <ciel/memory_impl/unique_ptr.hpp>
-#include <ciel/split_buffer.hpp>
 #include <cstddef>
 #include <stdexcept>
 
 NAMESPACE_CIEL_BEGIN
+namespace deprecated {
 
-// Differences between std::deque and this class:
+// Differences between std::deque and this class
+// To be simple, the "map" of deque (control block of every subarray) is list-implemented,
+//      while the common implemention is vector-like. It can avoid reallocations.
+//      But we can't get negative distance of two iterators instead.
+// Also, to be simple, empty deque will still allocate a block of memory, and if last block of subarray is full,
+//      end() will be at the first of a new-allocated subarray
 // T is not allowed to throw in move constructor/assignment
 // emplace, insert and resize has strong exception safety
 
 template<class T>
 constexpr auto deque_subarray_size() noexcept -> size_t {
-    // return ((sizeof(T) <= 4) ? 64 : ((sizeof(T) <= 8) ? 32 : ((sizeof(T) <= 16) ? 16 : ((sizeof(T) <= 32) ? 8 : 4))));
-    return sizeof(T) < 256 ? 4096 / sizeof(T) : 16;
+    return ((sizeof(T) <= 4) ? 64 : ((sizeof(T) <= 8) ? 32 : ((sizeof(T) <= 16) ? 16 : ((sizeof(T) <= 32) ? 8 : 4))));
 }
 
 template<class T, class Pointer, class Reference, class MapIterator, size_t SubarraySize>
@@ -51,10 +56,6 @@ private:
 
 public:
     [[nodiscard]] auto start() const noexcept -> T* {
-        if (cur_ == nullptr) {
-            return nullptr;
-        }
-
         // Why node_->get() won't compile?
         //
         // https://en.cppreference.com/w/cpp/language/operator_member_access
@@ -62,7 +63,7 @@ public:
         // recursively, until an operator-> is reached that returns a plain pointer.
         // After that, built-in semantics are applied to that pointer.
         //
-        // And node_ we have here is typename split_buffer<unique_ptr<T>>::iterator,
+        // And node_ we have here is typename list<unique_ptr<T>>::iterator,
         // so first -> will get unique_ptr<T>* ->get(),
         // second -> will get T* ->get(),
         // third -> will get T.get(), and we don't want that result :(
@@ -72,10 +73,6 @@ public:
 
     // Only used as sentinel
     [[nodiscard]] auto finish() const noexcept -> T* {
-        if (cur_ == nullptr) {
-            return nullptr;
-        }
-
         return start() + SubarraySize;
     }
 
@@ -134,10 +131,6 @@ public:
     }
 
     auto operator+=(const difference_type n) noexcept -> deque_iterator& {
-        if (n == 0) {
-            return *this;
-        }
-
         difference_type offset = n + (cur_ - start());
         if (offset >= 0 && static_cast<size_t>(offset) < SubarraySize) {
             cur_ += n;
@@ -199,11 +192,9 @@ template<class T, class Pointer1, class Pointer2, class Reference1,
 [[nodiscard]] auto operator-(const deque_iterator<T, Pointer1, Reference1, MapIterator, SubarraySize>& lhs,
                              const deque_iterator<T, Pointer2, Reference2, MapIterator, SubarraySize>& rhs) noexcept
     -> typename iterator_traits<deque_iterator<T, Pointer1, Reference1, MapIterator, SubarraySize>>::difference_type {
-    CIEL_PRECONDITION((!!(lhs) ^ !!(rhs)) == 0);
 
-    if (lhs == rhs) {
-        return 0;
-    }
+    // We need to make sure lhs >= rhs, otherwise distance(rhs.node_, lhs.node_) may crash,
+    // since the node_ is list iterator and can't get negative result out of distance function
 
     return SubarraySize * (distance(rhs.node_, lhs.node_) - 1) +
                 (lhs.base() - lhs.start()) + (rhs.finish() - rhs.base());
@@ -229,23 +220,21 @@ public:
 private:
     using alloc_traits           = allocator_traits<allocator_type>;
     using subarray_type          = unique_ptr<value_type, allocator_destructor<allocator_type>>;
-    using map_type               = split_buffer<subarray_type,
-                                    typename alloc_traits::template rebind_alloc<subarray_type>>;
 
 public:
     using iterator               = deque_iterator<value_type, pointer, reference,
-                                    typename map_type::iterator, SubarraySize>;
+                                    typename list<subarray_type, allocator_type>::iterator, SubarraySize>;
     using const_iterator         = deque_iterator<value_type, const_pointer, const_reference,
-                                    typename map_type::iterator, SubarraySize>;
+                                    typename list<subarray_type, allocator_type>::iterator, SubarraySize>;
 
     using reverse_iterator       = ciel::reverse_iterator<iterator>;
     using const_reverse_iterator = ciel::reverse_iterator<const_iterator>;
 
 private:
-    map_type map_;
+    [[no_unique_address]] allocator_type allocator_;
+    list<subarray_type, allocator_type> map_;
     size_type begin_offset_;
     size_type size_;
-    [[no_unique_address]] allocator_type allocator_;
 
     auto alloc_range_destroy(iterator begin, iterator end) noexcept -> void {
         while (begin != end) {
@@ -307,18 +296,18 @@ private:
         }
     }
 
-    [[nodiscard]] auto capacity() const noexcept -> size_type {
-        return map_.empty() ? 0 : map_.size() * SubarraySize - 1;   // intentionally so that end() can always be valid
-    }
-
     [[nodiscard]] auto front_spare() const noexcept -> size_type {
         return begin_offset_;
     }
 
     [[nodiscard]] auto back_spare() const noexcept -> size_type {
-        CIEL_PRECONDITION(capacity() >= front_spare() + size());
-
-        return capacity() - front_spare() - size();
+        size_type res = end().finish() - end().cur_ - 1;
+        auto cur = end().node_;
+        while (cur != map_.end().prev()) {
+            res += SubarraySize;
+            ++cur;
+        }
+        return res;
     }
 
     // Check which endpoint is pos close to
@@ -328,21 +317,19 @@ private:
             return pos;
         }
 
-        const auto pos_index = distance(begin(), pos);
-
-        if (pos_index < distance(pos, end())) {    // move left half to left
+        if (distance(begin(), pos) < distance(pos, end())) {    // move left half to left
 
             get_enough_front_spare(count);
 
             CIEL_PRECONDITION(front_spare() >= count);
 
-            alloc_range_construct_n(begin() -= count, count, std::forward<Arg>(arg));
+            alloc_range_construct_n(begin() - count, count, std::forward<Arg>(arg));
 
             iterator old_begin = begin();
             begin_offset_ -= count;
 
-            rotate(begin(), old_begin, old_begin + pos_index);
-            return begin() += pos_index;
+            rotate(begin(), old_begin, pos);
+            return --pos;
 
         } else {    // move right half to right
 
@@ -350,19 +337,14 @@ private:
 
             CIEL_PRECONDITION(back_spare() >= count);
 
-            iterator new_pos = begin() + pos_index;
             iterator old_end = end();
             alloc_range_construct_n(end(), count, std::forward<Arg>(arg));
 
-            rotate(new_pos, old_end, end());
-            return new_pos;
+            return rotate(pos, old_end, end()) - 1;
         }
     }
 
-    // current implementation will invalidate all iterators
-    auto get_enough_front_spare(size_type count) -> void {
-        count += map_.empty();
-
+    auto get_enough_front_spare(const size_type count) -> void {
         if (size_type fs = front_spare(); count > fs) {
             fs = (count - fs - 1) / SubarraySize + 1;   // blocks of memory we need
 
@@ -384,18 +366,10 @@ private:
                 begin_offset_ += SubarraySize;
                 --fs;
             }
-
-            // Prevent: when an empty deque emplace_front, it will get a subarray and end() will be invalid
-            if (map_.size() == 1 && begin_offset_ == SubarraySize && size() == 0) {
-                begin_offset_ = max(SubarraySize / 2, count);
-            }
         }
     }
 
-    // current implementation will invalidate all iterators
-    auto get_enough_back_spare(size_type count) -> void {
-        count += map_.empty();
-
+    auto get_enough_back_spare(const size_type count) -> void {
         if (size_type bs = back_spare(); count > bs) {
             bs = (count - bs - 1) / SubarraySize + 1;
 
@@ -422,31 +396,31 @@ private:
 
 public:
     deque()
-        : map_(), begin_offset_(0), size_(0), allocator_() {}
+        : allocator_(), map_(allocator_), begin_offset_(0), size_(0) {
+        map_.emplace_back(subarray_type(alloc_traits::allocate(allocator_, SubarraySize), allocator_));
+    }
 
     explicit deque(const allocator_type& alloc)
-        : map_(alloc), begin_offset_(0), size_(0), allocator_(alloc) {}
+        : allocator_(alloc), map_(allocator_), begin_offset_(0), size_(0) {
+        map_.emplace_back(subarray_type(alloc_traits::allocate(allocator_, SubarraySize), allocator_));
+    }
 
     deque(const size_type count, const T& value, const allocator_type& alloc = allocator_type())
         : deque(alloc) {
-        if (count > 0) [[likely]] {
-            size_type s = count / SubarraySize + 1;
-            while (s-- > 0) {
-                map_.emplace_back(subarray_type(alloc_traits::allocate(allocator_, SubarraySize), allocator_));
-            }
-            alloc_range_construct_n(begin(), count, value);
+        size_type s = count / SubarraySize;
+        while (s-- > 0) {
+            map_.emplace_back(subarray_type(alloc_traits::allocate(allocator_, SubarraySize), allocator_));
         }
+        alloc_range_construct_n(begin(), count, value);
     }
 
     explicit deque(const size_type count, const allocator_type& alloc = allocator_type())
         : deque(alloc) {
-        if (count > 0) [[likely]] {
-            size_type s = count / SubarraySize + 1;
-            while (s-- > 0) {
-                map_.emplace_back(subarray_type(alloc_traits::allocate(allocator_, SubarraySize), allocator_));
-            }
-            alloc_range_construct_n(begin(), count);
+        size_type s = count / SubarraySize;
+        while (s-- > 0) {
+            map_.emplace_back(subarray_type(alloc_traits::allocate(allocator_, SubarraySize), allocator_));
         }
+        alloc_range_construct_n(begin(), count);
     }
 
     template<class Iter>
@@ -468,13 +442,11 @@ public:
         requires is_forward_iterator<Iter>::value
     deque(Iter first, Iter last, const allocator_type& alloc = allocator_type())
         : deque(alloc) {
-        if (const auto count = ciel::distance(first, last); count > 0) [[likely]] {
-            auto s = count / SubarraySize + 1;
-            while (s-- > 0) {
-                map_.emplace_back(subarray_type(alloc_traits::allocate(allocator_, SubarraySize), allocator_));
-            }
-            alloc_range_construct(begin(), first, last);
+        auto s = ciel::distance(first, last) / SubarraySize;
+        while (s-- > 0) {
+            map_.emplace_back(subarray_type(alloc_traits::allocate(allocator_, SubarraySize), allocator_));
         }
+        alloc_range_construct(begin(), first, last);
     }
 
     deque(const deque& other)
@@ -659,13 +631,11 @@ public:
     }
 
     [[nodiscard]] auto begin() noexcept -> iterator {
-        auto map_iter = map_.begin() + begin_offset_ / SubarraySize;
-        return iterator(map_.empty() ? nullptr : (*map_iter).get() + begin_offset_ % SubarraySize, map_iter);
+        return iterator(map_.front().get(), map_.begin()) += begin_offset_;
     }
 
     [[nodiscard]] auto begin() const noexcept -> const_iterator {
-        auto map_iter = map_.begin() + begin_offset_ / SubarraySize;
-        return const_iterator(map_.empty() ? nullptr : (*map_iter).get() + begin_offset_ % SubarraySize, map_iter);
+        return iterator(map_.front().get(), map_.begin()) += begin_offset_;
     }
 
     [[nodiscard]] auto cbegin() const noexcept -> const_iterator {
@@ -673,15 +643,11 @@ public:
     }
 
     [[nodiscard]] auto end() noexcept -> iterator {
-        const size_type end_offset = size() + begin_offset_;
-        auto map_iter = map_.begin() + end_offset / SubarraySize;
-        return iterator(map_.empty() ? nullptr : (*map_iter).get() + end_offset % SubarraySize, map_iter);
+        return begin() += size();
     }
 
     [[nodiscard]] auto end() const noexcept -> const_iterator {
-        const size_type end_offset = size() + begin_offset_;
-        auto map_iter = map_.begin() + end_offset / SubarraySize;
-        return const_iterator(map_.empty() ? nullptr : (*map_iter).get() + end_offset % SubarraySize, map_iter);
+        return begin() += size();
     }
 
     [[nodiscard]] auto cend() const noexcept -> const_iterator {
@@ -756,8 +722,8 @@ public:
     template<class Iter>
         requires is_exactly_input_iterator<Iter>::value
     auto insert(iterator pos, Iter first, Iter last) -> iterator {
-        const auto pos_index = distance(begin(), pos);
-        const auto old_size = size();
+
+        auto old_end = end();
 
         CIEL_TRY {
             while (first != last) {
@@ -765,76 +731,33 @@ public:
                 ++first;
             }
         } CIEL_CATCH (...) {
-            alloc_range_destroy(begin() += old_size, end());
+            alloc_range_destroy(old_end, end());
             CIEL_THROW;
         }
-        rotate(pos, begin() += old_size, end());
-        return begin() += pos_index;
+        return rotate(pos, old_end, end()) - 1;
     }
 
     template<class Iter>
         requires is_forward_iterator<Iter>::value
     auto insert(iterator pos, Iter first, Iter last) -> iterator {
-        const auto count = ciel::distance(first, last);
-        if (count <= 0) [[unlikely]] {
-            return pos;
-        }
-
-        const auto pos_index = distance(begin(), pos);
-
-        if (pos_index < distance(pos, end())) {  // move left half to left
-
-            get_enough_front_spare(count);
-
-            CIEL_PRECONDITION(front_spare() >= static_cast<size_type>(count));
-
-            alloc_range_construct(begin() -= count, first, last);
-
-            iterator old_begin = begin();
-            begin_offset_ -= count;
-
-            rotate(begin(), old_begin, old_begin + pos_index);
-            return begin() += pos_index;
-
-        } else {    // move right half to right
-
-            get_enough_back_spare(count);
-
-            CIEL_PRECONDITION(back_spare() >= static_cast<size_type>(count));
-
-            iterator new_pos = begin() + pos_index;
-            iterator old_end = end();
-            alloc_range_construct(end(), first, last);
-
-            rotate(new_pos, old_end, end());
-            return new_pos;
-        }
-    }
-
-    // for self assignment because first and last will be invalid after expansion
-    auto insert(iterator pos, iterator first, iterator last) -> iterator {
         const auto count = distance(first, last);
         if (count <= 0) [[unlikely]] {
             return pos;
         }
 
-        const auto pos_index = distance(begin(), pos);
-        const auto first_index = distance(begin(), first);
-        const auto last_index = distance(begin(), last);
-
-        if (pos_index < distance(pos, end())) {  // move left half to left
+        if (distance(begin(), pos) < distance(pos, end())) {  // move left half to left
 
             get_enough_front_spare(count);
 
             CIEL_PRECONDITION(front_spare() >= static_cast<size_type>(count));
 
-            alloc_range_construct(begin() -= count, begin() += first_index, begin() += last_index);
+            alloc_range_construct(begin() - count, first, last);
 
             iterator old_begin = begin();
             begin_offset_ -= count;
 
-            rotate(begin(), old_begin, old_begin + pos_index);
-            return begin() + pos_index;
+            rotate(begin(), old_begin, pos);
+            return --pos;
 
         } else {    // move right half to right
 
@@ -842,12 +765,10 @@ public:
 
             CIEL_PRECONDITION(back_spare() >= static_cast<size_type>(count));
 
-            iterator new_pos = begin() + pos_index;
             iterator old_end = end();
-            alloc_range_construct(end(), begin() += first_index, begin() += last_index);
+            alloc_range_construct(end(), first, last);
 
-            rotate(new_pos, old_end, end());
-            return new_pos;
+            return rotate(pos, old_end, end()) - 1;
         }
     }
 
@@ -857,13 +778,13 @@ public:
 
     template<class... Args>
     auto emplace(iterator pos, Args&&... args) -> iterator {
-        if (pos == end()) {
-            emplace_back(std::forward<Args>(args)...);
-            return --end();
-        }
         if (pos == begin()) {
             emplace_front(std::forward<Args>(args)...);
             return begin();
+        }
+        if (pos == end()) {
+            emplace_back(std::forward<Args>(args)...);
+            return pos;
         }
         return insert_n(pos, 1, value_type(std::forward<Args>(args)...));
     }
@@ -875,12 +796,21 @@ public:
     }
 
     auto erase(iterator first, iterator last) noexcept -> iterator {
-        const difference_type count = distance(first, last);
+        const difference_type begin_first_distance = distance(begin(), first);
+        const difference_type begin_last_distance = distance(begin(), last);
+
+        // Don't do count = distance(first, last) because if last is at the left subarray of first's,
+        //
+        // ----------   ----------   ----------   ----------  (list<unique_ptr<T>>)
+        //     |              |            |              |
+        //   begin()        last         first           end()
+        //
+        // we can't get negative result out of distance function on list's iterator
+
+        const difference_type count = begin_last_distance - begin_first_distance;
         if (count <= 0) [[unlikely]] {
             return last;
         }
-
-        const auto begin_first_distance = distance(begin(), first);
 
         if (begin_first_distance < distance(last, end())) {
             move_backward(begin(), first, last);
@@ -909,10 +839,7 @@ public:
 
     template<class... Args>
     auto emplace_back(Args&& ... args) -> reference {
-        if (back_spare() == 0) {
-            get_enough_back_spare(1);
-        }
-
+        get_enough_back_spare(1);
         alloc_range_construct_n(end(), 1, std::forward<Args>(args)...);
         return back();
     }
@@ -933,11 +860,9 @@ public:
 
     template<class... Args>
     auto emplace_front(Args&& ... args) -> reference {
-        if (front_spare() == 0) {
-            get_enough_front_spare(1);
-        }
+        get_enough_front_spare(1);
 
-        CIEL_PRECONDITION(front_spare() > 0);
+        CIEL_PRECONDITION(begin_offset_ > 0);
 
         alloc_range_construct_n(--begin(), 1, std::forward<Args>(args)...);
         --begin_offset_;
@@ -1022,15 +947,17 @@ auto erase_if(deque<T, Alloc>& c, Pred pred) -> typename deque<T, Alloc>::size_t
 template<class Iter, class Alloc = allocator<typename iterator_traits<Iter>::value_type>>
 deque(Iter, Iter, Alloc = Alloc()) -> deque<typename iterator_traits<Iter>::value_type, Alloc>;
 
+}    // namespace deprecated
 NAMESPACE_CIEL_END
 
 namespace std {
 
 template<class T, class Alloc>
-auto swap(ciel::deque<T, Alloc>& lhs, ciel::deque<T, Alloc>& rhs) noexcept(noexcept(lhs.swap(rhs))) -> void {
+auto swap(ciel::deprecated::deque<T, Alloc>& lhs,
+          ciel::deprecated::deque<T, Alloc>& rhs) noexcept(noexcept(lhs.swap(rhs))) -> void {
     lhs.swap(rhs);
 }
 
 }   // namespace std
 
-#endif // CIELUTILS_INCLUDE_CIEL_DEQUE_HPP_
+#endif // CIELUTILS_INCLUDE_CIEL_DEPRECATED_DEQUE_HPP_

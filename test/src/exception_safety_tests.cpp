@@ -1,6 +1,5 @@
 #include <gtest/gtest.h>
 
-#include <ciel/algorithm.hpp>
 #include <ciel/deque.hpp>
 #include <ciel/forward_list.hpp>
 #include <ciel/list.hpp>
@@ -91,10 +90,14 @@ struct NothrowMoveStruct {
         if (rhs.ptr) {
             return *lhs.ptr == *rhs.ptr;
         }
-        return false;
-    } else if (rhs.ptr) {
+
         return false;
     }
+
+    if (rhs.ptr) {
+        return false;
+    }
+
     return true;
 }
 

@@ -86,6 +86,18 @@ struct rebind_of<S<T, Args...>, U, false> {
 template<class Ptr>
 struct pointer_traits {
 
+    // used in container iterator
+    [[nodiscard]] static auto to_address(const Ptr& r) -> typename Ptr::pointer
+        requires (requires (Ptr p) { p.base(); typename Ptr::pointer; }) {
+        return r.base();
+    }
+
+};    // struct pointer_traits
+
+template<class Ptr>
+    requires requires { typename details::element_type_of<Ptr>::type; }
+struct pointer_traits<Ptr> {
+
     using pointer         = Ptr;
     using element_type    = typename details::element_type_of<Ptr>::type;
     using difference_type = typename details::difference_type_of<Ptr>::type;
@@ -96,6 +108,12 @@ struct pointer_traits {
     [[nodiscard]] static auto pointer_to(conditional_t<is_void_v<element_type>, void, element_type&> r) -> pointer {
         return pointer::pointer_to(r);
     }
+
+    // used in container iterator
+    [[nodiscard]] static auto to_address(const Ptr& r) -> typename Ptr::pointer
+        requires (requires (Ptr p) { p.base(); typename Ptr::pointer; }) {
+        return r.base();
+        }
 
 };    // struct pointer_traits
 

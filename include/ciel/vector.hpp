@@ -127,7 +127,7 @@ private:
     [[nodiscard]] constexpr auto get_new_allocation(const size_type new_cap) -> allocation_result<pointer, size_type> {
         CIEL_PRECONDITION(new_cap > 0);
 
-        if (new_cap > max_size()) {
+        if (new_cap > max_size()) [[unlikely]] {
             THROW(std::length_error("ciel::vector reserving size is beyond max_size"));
         }
         return alloc_traits::allocate_at_least(allocator_, new_cap);
@@ -156,7 +156,7 @@ private:
 
     template<class Arg>
     constexpr auto insert_n(iterator pos, const size_type count, Arg&& arg) -> iterator {
-        if (count == 0) {
+        if (count == 0) [[unlikely]] {
             return pos;
         }
 
@@ -181,8 +181,8 @@ private:
             }
 
             if (begin_) {
-                alloc_range_move(new_start, begin_, pos.base());
-                alloc_range_move(new_pos + count, pos.base(), end_);
+                alloc_range_move(new_start, begin_, to_address(pos));
+                alloc_range_move(new_pos + count, to_address(pos), end_);
 
                 clear();
                 alloc_traits::deallocate(allocator_, begin_, capacity());
@@ -192,13 +192,14 @@ private:
             end_ = begin_ + new_size;
             end_cap_ = begin_ + new_cap;
 
-            return iterator(new_pos + count - 1);
+            return iterator(new_pos);
         } else {
             // When capacity is enough, we construct them all at end and rotate them to the right place
 
             iterator old_end = end();
             end_ = alloc_range_construct_n(end_, count, std::forward<Arg>(arg));
-            return rotate(pos, old_end, end()) - 1;
+            rotate(pos, old_end, end());
+            return pos;
         }
     }
 
@@ -224,7 +225,7 @@ public:
 
     constexpr vector(const size_type count, const value_type& value, const allocator_type& alloc = allocator_type())
         : vector(alloc) {
-        if (count > 0) {
+        if (count > 0) [[likely]] {
             begin_ = alloc_traits::allocate(allocator_, count);
             end_cap_ = begin_ + count;
             CIEL_TRY {
@@ -238,7 +239,7 @@ public:
 
     constexpr explicit vector(const size_type count, const allocator_type& alloc = allocator_type())
         : vector(alloc) {
-        if (count > 0) {
+        if (count > 0) [[likely]] {
             begin_ = alloc_traits::allocate(allocator_, count);
             end_cap_ = begin_ + count;
             CIEL_TRY {
@@ -270,7 +271,7 @@ public:
         requires is_forward_iterator<Iter>::value
     constexpr vector(Iter first, Iter last, const allocator_type& alloc = allocator_type())
         : vector(alloc) {
-        if (const auto count = ciel::distance(first, last); count > 0) {
+        if (const auto count = ciel::distance(first, last); count > 0) [[likely]] {
             begin_ = alloc_traits::allocate(allocator_, count);
             end_cap_ = begin_ + count;
             CIEL_TRY {
@@ -321,7 +322,7 @@ public:
     }
 
     constexpr auto operator=(const vector& other) -> vector& {
-        if (this == addressof(other)) {
+        if (this == addressof(other)) [[unlikely]] {
             return *this;
         }
 
@@ -343,7 +344,7 @@ public:
     constexpr auto operator=(vector&& other)
         noexcept(alloc_traits::propagate_on_container_move_assignment::value ||
                  alloc_traits::is_always_equal::value) -> vector& {
-        if (this == addressof(other)) {
+        if (this == addressof(other)) [[unlikely]] {
             return *this;
         }
 
@@ -438,14 +439,14 @@ public:
     }
 
     [[nodiscard]] constexpr auto at(const size_type pos) -> reference {
-        if (pos >= size()) {
+        if (pos >= size()) [[unlikely]] {
             THROW(std::out_of_range("pos is not within the range of ciel::vector"));
         }
         return begin_[pos];
     }
 
     [[nodiscard]] constexpr auto at(const size_type pos) const -> const_reference {
-        if (pos >= size()) {
+        if (pos >= size()) [[unlikely]] {
             THROW(std::out_of_range("pos is not within the range of ciel::vector"));
         }
         return begin_[pos];
@@ -572,7 +573,7 @@ public:
     }
 
     constexpr auto shrink_to_fit() -> void {
-        if (size() == capacity()) {
+        if (size() == capacity()) [[unlikely]] {
             return;
         }
         if (size() > 0) {
@@ -620,14 +621,15 @@ public:
             CIEL_THROW;
         }
 
-        return rotate(begin() + pos_index, begin() + old_size, end()) - 1;
+        rotate(begin() + pos_index, begin() + old_size, end());
+        return begin() += pos_index;
     }
 
     template<class Iter>
         requires is_forward_iterator<Iter>::value
     constexpr auto insert(iterator pos, Iter first, Iter last) -> iterator {
         const auto count = ciel::distance(first, last);
-        if (count <= 0) {
+        if (count <= 0) [[unlikely]] {
             return pos;
         }
 
@@ -649,8 +651,8 @@ public:
             }
 
             if (begin_) {
-                alloc_range_move(new_start, begin_, pos.base());
-                alloc_range_move(new_pos + count, pos.base(), end_);
+                alloc_range_move(new_start, begin_, to_address(pos));
+                alloc_range_move(new_pos + count, to_address(pos), end_);
 
                 clear();
                 alloc_traits::deallocate(allocator_, begin_, capacity());
@@ -660,11 +662,12 @@ public:
             end_ = begin_ + new_size;
             end_cap_ = begin_ + new_cap;
 
-            return iterator(new_pos + count - 1);
+            return iterator(new_pos);
         } else {
             iterator old_end = end();
             end_ = alloc_range_construct(end_, first, last);
-            return rotate(pos, old_end, end()) - 1;
+            rotate(pos, old_end, end());
+            return pos;
         }
     }
 
@@ -676,7 +679,7 @@ public:
     constexpr auto emplace(iterator pos, Args&& ... args) -> iterator {
         if (pos == end()) {
             emplace_back(std::forward<Args>(args)...);
-            return iterator(end_ - 1);    // There is possiblity of expansion, don't return iterator(pos)
+            return iterator(end_ - 1);    // There is possiblity of expansion, don't return pos
         }
         return insert_n(pos, 1, value_type(std::forward<Args>(args)...));
     }
@@ -688,14 +691,14 @@ public:
     }
 
     constexpr auto erase(iterator first, iterator last) noexcept -> iterator {
-        if (auto distance = ciel::distance(first, last); distance <= 0) {
+        if (auto distance = ciel::distance(first, last); distance <= 0) [[unlikely]] {
             return last;
         }
 
         auto index = first - begin();
 
         iterator new_end = move(last, end(), first);
-        end_ = alloc_range_destroy(new_end.base(), end_);
+        end_ = alloc_range_destroy(to_address(new_end), end_);
 
         return begin() + index;
     }

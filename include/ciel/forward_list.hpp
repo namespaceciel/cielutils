@@ -94,7 +94,7 @@ public:
     }
 
     [[nodiscard]] explicit operator bool() const noexcept {
-        return it_ != nullptr;
+        return base() != nullptr;
     }
 
 };    // class list_iterator

@@ -19,6 +19,8 @@ NAMESPACE_CIEL_BEGIN
 
 // This class is used in std::deque implementation and it's like a double-ended vector.
 // We complete its functionality so that it can be used as a normal container.
+// When pushing elements and there is no space this side, we try to shift to other side if there is plenty of space,
+// or just expand.
 // When it comes to expansion, we try to move old elements to the middle of new space
 // and leave some free space at both sides.
 // Self assignments like v.emplace_back(v[0]) is not supported so that we can simplify the code.
@@ -249,7 +251,7 @@ private:
     [[nodiscard]] constexpr auto get_new_allocation(const size_type new_cap) -> allocation_result<pointer, size_type> {
         CIEL_PRECONDITION(new_cap > 0);
 
-        if (new_cap > max_size()) {
+        if (new_cap > max_size()) [[unlikely]] {
             THROW(std::length_error("ciel::split_buffer reserving size is beyond max_size"));
         }
         return alloc_traits::allocate_at_least(allocator_, new_cap);
@@ -281,7 +283,7 @@ private:
 
     template<class Arg>
     constexpr auto insert_n(iterator pos, const size_type count, Arg&& arg) -> iterator {
-        if (count == 0) {
+        if (count == 0) [[unlikely]] {
             return pos;
         }
 
@@ -295,7 +297,7 @@ private:
             begin_ -= count;
 
             rotate(begin(), old_begin, pos);
-            return pos - 1;
+            return pos -= count;
         }
 
         if (back_spare() < count && front_spare() + back_spare() >= count) {
@@ -307,7 +309,8 @@ private:
         if (back_spare() >= count) {    // move right half to right
             iterator old_end = end();
             end_ = alloc_range_construct_n(end_, count, std::forward<Arg>(arg));
-            return rotate(pos, old_end, end()) - 1;
+            rotate(pos, old_end, end());
+            return pos;
         }
 
         // When it comes to expansion, we need to construct new elements directly on new space,
@@ -331,8 +334,8 @@ private:
         }
 
         if (begin_cap_) {
-            alloc_range_move(new_start, begin_, pos.base());
-            alloc_range_move(new_pos + count, pos.base(), end_);
+            alloc_range_move(new_start, begin_, to_address(pos));
+            alloc_range_move(new_pos + count, to_address(pos), end_);
 
             clear();
             alloc_traits::deallocate(allocator_, begin_cap_, capacity());
@@ -343,7 +346,7 @@ private:
         end_ = begin_ + new_size;
         end_cap_ = begin_cap_ + new_cap;
 
-        return iterator(new_pos + count - 1);
+        return iterator(new_pos);
     }
 
     constexpr auto clear_and_get_cap_no_less_than(const size_type cap, const size_type begin_offset = 0) -> void {
@@ -376,7 +379,7 @@ public:
 
     constexpr split_buffer(const size_type count, const value_type& value, const allocator_type& alloc = allocator_type())
         : split_buffer(alloc) {
-        if (count > 0) {
+        if (count > 0) [[likely]] {
             begin_cap_ = alloc_traits::allocate(allocator_, count);
             end_cap_ = begin_cap_ + count;
 
@@ -393,7 +396,7 @@ public:
 
     constexpr explicit split_buffer(const size_type count, const allocator_type& alloc = allocator_type())
         : split_buffer(alloc) {
-        if (count > 0) {
+        if (count > 0) [[likely]] {
             begin_cap_ = alloc_traits::allocate(allocator_, count);
             end_cap_ = begin_cap_ + count;
 
@@ -428,7 +431,7 @@ public:
         requires is_forward_iterator<Iter>::value
     constexpr split_buffer(Iter first, Iter last, const allocator_type& alloc = allocator_type())
         : split_buffer(alloc) {
-        if (auto count = ciel::distance(first, last); count > 0) {
+        if (auto count = ciel::distance(first, last); count > 0) [[likely]] {
             begin_cap_ = alloc_traits::allocate(allocator_, count);
             end_cap_ = begin_cap_ + count;
 
@@ -486,7 +489,7 @@ public:
     }
 
     constexpr auto operator=(const split_buffer& other) -> split_buffer& {
-        if (this == addressof(other)) {
+        if (this == addressof(other)) [[unlikely]] {
             return *this;
         }
 
@@ -506,7 +509,7 @@ public:
     constexpr auto operator=(split_buffer&& other)
         noexcept(alloc_traits::propagate_on_container_move_assignment::value ||
                  alloc_traits::is_always_equal::value) -> split_buffer& {
-        if (this == addressof(other)) {
+        if (this == addressof(other)) [[unlikely]] {
             return *this;
         }
 
@@ -609,14 +612,14 @@ public:
     }
 
     [[nodiscard]] constexpr auto at(const size_type pos) -> reference {
-        if (pos >= size()) {
+        if (pos >= size()) [[unlikely]] {
             THROW(std::out_of_range("pos is not within the range of ciel::split_buffer"));
         }
         return begin_[pos];
     }
 
     [[nodiscard]] constexpr auto at(const size_type pos) const -> const_reference {
-        if (pos >= size()) {
+        if (pos >= size()) [[unlikely]] {
             THROW(std::out_of_range("pos is not within the range of ciel::split_buffer"));
         }
         return begin_[pos];
@@ -732,12 +735,14 @@ public:
         if (new_spare <= front_spare()) {
             return;
         }
+
         if (new_spare <= front_spare() + back_spare()) {
             right_shift_n(new_spare - front_spare());
 
             CIEL_POSTCONDITION(new_spare <= front_spare());
             return;
         }
+
         auto new_allocation = get_new_allocation(max(new_spare + size(), expected_cap));
         reserve_to(new_allocation, new_spare);
 
@@ -748,12 +753,14 @@ public:
         if (new_spare <= back_spare()) {
             return;
         }
+
         if (new_spare <= front_spare() + back_spare()) {
             left_shift_n(new_spare - back_spare());
 
             CIEL_POSTCONDITION(new_spare <= back_spare());
             return;
         }
+
         auto new_allocation = get_new_allocation(max(new_spare + size(), expected_cap));
         reserve_to(new_allocation);
 
@@ -765,7 +772,7 @@ public:
     }
 
     constexpr auto shrink_to_fit() -> void {
-        if (front_spare() == 0 && back_spare() == 0) {
+        if (front_spare() == 0 && back_spare() == 0) [[unlikely]] {
             return;
         }
         if (size() > 0) {
@@ -814,14 +821,15 @@ public:
             CIEL_THROW;
         }
 
-        return rotate(begin() + pos_index, begin() + old_size, end()) - 1;
+        rotate(begin() + pos_index, begin() + old_size, end());
+        return begin() += pos_index;
     }
 
     template<class Iter>
         requires is_forward_iterator<Iter>::value
     constexpr auto insert(iterator pos, Iter first, Iter last) -> iterator {
         const auto count = ciel::distance(first, last);
-        if (count <= 0) {
+        if (count <= 0) [[unlikely]] {
             return pos;
         }
 
@@ -836,7 +844,7 @@ public:
             begin_ -= count;
 
             rotate(begin(), old_begin, pos);
-            return pos - 1;
+            return pos -= count;
         }
 
         if (back_spare() < static_cast<size_type>(count) &&
@@ -849,7 +857,8 @@ public:
         if (back_spare() >= static_cast<size_type>(count)) {    // move right half to right
             iterator old_end = end();
             end_ = alloc_range_construct(end_, first, last);
-            return rotate(pos, old_end, end()) - 1;
+            rotate(pos, old_end, end());
+            return pos;
         }
 
         // When it comes to expansion, we need to construct new elements directly on new space,
@@ -873,8 +882,8 @@ public:
         }
 
         if (begin_cap_) {
-            alloc_range_move(new_start, begin_, pos.base());
-            alloc_range_move(new_pos + count, pos.base(), end_);
+            alloc_range_move(new_start, begin_, to_address(pos));
+            alloc_range_move(new_pos + count, to_address(pos), end_);
 
             clear();
             alloc_traits::deallocate(allocator_, begin_cap_, capacity());
@@ -885,7 +894,7 @@ public:
         end_ = begin_ + new_size;
         end_cap_ = begin_cap_ + new_cap;
 
-        return iterator(new_pos + count - 1);
+        return iterator(new_pos);
     }
 
     constexpr auto insert(iterator pos, std::initializer_list<value_type> ilist) -> iterator {
@@ -912,7 +921,7 @@ public:
     }
 
     constexpr auto erase(iterator first, iterator last) noexcept -> iterator {
-        if (distance(first, last) <= 0) {
+        if (distance(first, last) <= 0) [[unlikely]] {
             return last;
         }
 
@@ -922,12 +931,12 @@ public:
         if (begin_first_distance < distance(last, end())) {
             pointer old_begin = begin_;
 
-            begin_ = move_backward(begin(), first, last).base();
+            begin_ = to_address(move_backward(begin(), first, last));
 
             alloc_range_destroy(old_begin, begin_);
 
         } else {
-            pointer new_end = move(last, end(), first).base();
+            pointer new_end = to_address(move(last, end(), first));
 
             end_ = alloc_range_destroy(new_end, end_);
         }
@@ -943,11 +952,35 @@ public:
         emplace_back(std::move(value));
     }
 
+    // Comparing with vector growing factor: get n * 2 memory, move n elements and get n new space,
+    // it's terrible if we shift one (move n elements) to get 1 vacant space for emplace,
+    // so only if there is plenty of space at other side will we consider shifting.
+    // This situation may be seen when it's used as queue's base container.
     template<class... Args>
     constexpr auto emplace_back(Args&& ... args) -> reference {
-        reserve_back_spare(1, capacity() * 2);
+        if (back_spare() == 0) {
 
-        end_ = alloc_range_construct_n(end_, 1, std::forward<Args>(args)...);
+            if (front_spare() > size()) [[unlikely]] {   // move size elements to get more than size / 2 vacant space
+                left_shift_n(max<size_type>(front_spare() / 2, 1));
+                end_ = alloc_range_construct_n(end_, 1, std::forward<Args>(args)...);
+
+            } else {
+                auto new_allocation = get_new_allocation(capacity() ? capacity() * 2 : 1);
+                pointer new_start = new_allocation.ptr;
+                const size_type new_cap = new_allocation.count;
+
+                CIEL_TRY {
+                    alloc_range_construct_n(new_start + front_spare() + size(), 1, std::forward<Args>(args)...);
+                } CIEL_CATCH (...) {
+                    alloc_traits::deallocate(allocator_, new_start, new_cap);
+                    CIEL_THROW;
+                }
+                reserve_to(new_allocation, front_spare());
+                ++end_;
+            }
+        } else {
+            end_ = alloc_range_construct_n(end_, 1, std::forward<Args>(args)...);
+        }
 
         return back();
     }
@@ -968,10 +1001,32 @@ public:
 
     template<class... Args>
     constexpr auto emplace_front(Args&& ... args) -> reference {
-        reserve_front_spare(1, capacity() * 2);
+        if (front_spare() == 0) {
 
-        alloc_range_construct_n(begin_ - 1, 1, std::forward<Args>(args)...);
-        --begin_;
+            if (back_spare() > size()) [[unlikely]] {   // move size elements to get more than size / 2 vacant space
+                right_shift_n(max<size_type>(back_spare() / 2, 1));
+                alloc_range_construct_n(begin_ - 1, 1, std::forward<Args>(args)...);
+                --begin_;
+
+            } else {
+                auto new_allocation = get_new_allocation(capacity() ? capacity() * 2 : 1);
+                pointer new_start = new_allocation.ptr;
+                const size_type new_cap = new_allocation.count;
+
+                CIEL_TRY {
+                    alloc_range_construct_n(new_start + (new_cap - size() - back_spare() - 1), 1,
+                                            std::forward<Args>(args)...);
+                } CIEL_CATCH (...) {
+                    alloc_traits::deallocate(allocator_, new_start, new_cap);
+                    CIEL_THROW;
+                }
+                reserve_to(new_allocation, new_cap - size() - back_spare());
+                --begin_;
+            }
+        } else {
+            alloc_range_construct_n(begin_ - 1, 1, std::forward<Args>(args)...);
+            --begin_;
+        }
 
         return front();
     }

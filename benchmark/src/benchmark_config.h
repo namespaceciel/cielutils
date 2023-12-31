@@ -144,7 +144,7 @@ void set_find_benchmark(Set& s) noexcept {
 }
 
 template<class Set, class iterator = typename Set::iterator>
-void set_erase_benchmark(Set& s) noexcept {
+void set_erase_benchmark(Set s) noexcept {
     iterator it = s.begin();
 
     for (int i = 0;  i < 1000; ++i) {

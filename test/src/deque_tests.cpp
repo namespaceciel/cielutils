@@ -171,7 +171,7 @@ TEST(deque_tests, insert_and_emplace) {
 
     // insert at left and right half
     ASSERT_EQ(*v1.insert(v1.begin() + 1, 2, 41), 41);
-    ASSERT_EQ(*v1.insert(v1.end() - 3, {42, 43}), 43);
+    ASSERT_EQ(*v1.insert(v1.end() - 3, {42, 43}), 42);
 
     // insert empty range
     ASSERT_EQ(*v1.insert(v1.begin(), v1.begin(), v1.begin()), 22);
@@ -185,7 +185,7 @@ TEST(deque_tests, insert_and_emplace) {
 
     // insert self range when expansion
     v1.shrink_to_fit();
-    ASSERT_EQ(*v1.insert(v1.begin() + 2, v1.begin() + 1, v1.begin() + 5), 99);
+    ASSERT_EQ(*v1.insert(v1.begin() + 2, v1.begin() + 1, v1.begin() + 5), 41);
     ASSERT_EQ(v1, std::initializer_list<int>({22, 41, 41, 99, 99, 99, 99, 99, 99, 99, 41, 21, 0, 1, 2, 3, 4, 5, 42, 43,
                                               6, 31, 32}));
 }

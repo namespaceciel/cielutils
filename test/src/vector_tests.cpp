@@ -163,7 +163,7 @@ TEST(vector_tests, insert_and_emplace) {
 
     // insert at mid
     ASSERT_EQ(*v1.insert(v1.begin() + 5, 2, 41), 41);
-    ASSERT_EQ(*v1.insert(v1.begin() + 8, {42, 43}), 43);
+    ASSERT_EQ(*v1.insert(v1.begin() + 8, {42, 43}), 42);
 
     // insert empty range
     ASSERT_EQ(*v1.insert(v1.begin(), v1.begin(), v1.begin()), 22);
@@ -177,7 +177,7 @@ TEST(vector_tests, insert_and_emplace) {
 
     // insert self range when expansion
     v1.shrink_to_fit();
-    ASSERT_EQ(*v1.insert(v1.begin() + 2, v1.begin() + 1, v1.begin() + 5), 1);
+    ASSERT_EQ(*v1.insert(v1.begin() + 2, v1.begin() + 1, v1.begin() + 5), 21);
     ASSERT_EQ(v1, std::initializer_list<int>({22, 21, 21, 99, 0, 1, 99, 0, 1, 2, 41, 41, 3, 42, 43, 4, 5, 6, 31, 32}));
 }
 

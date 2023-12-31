@@ -193,7 +193,7 @@ TEST(split_buffer_tests, insert_and_emplace) {
 
     // insert at left and right half
     ASSERT_EQ(*v1.insert(v1.begin() + 1, 2, 41), 41);
-    ASSERT_EQ(*v1.insert(v1.end() - 3, {42, 43}), 43);
+    ASSERT_EQ(*v1.insert(v1.end() - 3, {42, 43}), 42);
 
     // insert empty range
     ASSERT_EQ(*v1.insert(v1.begin(), v1.begin(), v1.begin()), 22);
@@ -244,7 +244,7 @@ TEST(split_buffer_tests, insert_and_emplace) {
     v1.reserve_front_spare(4);
     v1.reserve_back_spare(2);   // will lend 2 from front spare
 
-    ASSERT_EQ(*v1.insert(v1.end() - 2, {45, 46, 47}), 47);
+    ASSERT_EQ(*v1.insert(v1.end() - 2, {45, 46, 47}), 45);
 
     ASSERT_EQ(v1, std::initializer_list<int>({22, 18, 65, 65, 65, 16, 41, 99, 99, 99, 99, 41, 21, 0, 1, 2, 3, 4, 5, 42,
                                               43, 6, 19, 31, 45, 46, 47, 17, 32}));
