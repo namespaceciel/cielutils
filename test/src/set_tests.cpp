@@ -12,12 +12,12 @@ TEST(set_tests, constructors_and_assignments) {
     const ciel::set s2{5, 3, 1, 4, 0, 2};
 
     const ciel::vector v1{5, 1, 4, 0, 2, 3};
-    const ciel::set<int> s3(v1.begin(), v1.end());
+    const ciel::set s3(v1.begin(), v1.end());
 
     const ciel::set s4{0, 2, 3, 2, 1, 4, 1, 2, 4, 0, 5, 0, 3, 1, 0, 5, 0, 5, 3, 0, 2, 1, 3, 4};
 
     const ciel::vector v2{5, 1, 3, 1, 4, 0, 5, 1, 3, 0, 4, 5, 0, 0, 2, 3, 1, 4, 4, 0, 2, 3};
-    ciel::set<int> s5(v2.begin(), v2.end());
+    ciel::set s5(v2.begin(), v2.end());
 
     ciel::set s6(s5);
 
@@ -47,7 +47,7 @@ TEST(set_tests, constructors_and_assignments) {
     ASSERT_EQ(s1, s5);
     ASSERT_EQ(s1, s6);
 
-    ciel::set<int> s7(std::move(s6));
+    ciel::set s7(std::move(s6));
     ASSERT_TRUE(s6.empty());
     ASSERT_EQ(s1, s7);
 
@@ -120,7 +120,7 @@ TEST(set_tests, sort) {
         v.emplace_back(i);
     }
     for (size_t loop = 0; loop < 20; ++loop) {
-        std::shuffle(v.begin(), v.end(), g);
+        std::ranges::shuffle(v, g);
 
         ciel::set s(v.begin(), v.end());
 
@@ -158,7 +158,7 @@ TEST(set_tests, large_amount_random_deletion) {
     for (size_t loop = 0; loop < 20; ++loop) {
         ciel::set s(v.begin(), v.end());
 
-        std::shuffle(v.begin(), v.end(), g);
+        std::ranges::shuffle(v, g);
         for (const size_t i : v) {
             s.erase(i);
         }

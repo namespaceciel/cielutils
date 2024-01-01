@@ -23,10 +23,10 @@ TEST(pair_tests, all) {
     ASSERT_EQ(p5.first, 2);
     ASSERT_EQ(p5.second, 1.5);
 
-    const ciel::pair p9(6, 2.2);
-    const ciel::pair p10 = ciel::make_pair(6, 2.2);
+    constexpr ciel::pair p9(6, 2.2);
+    constexpr ciel::pair p10 = ciel::make_pair(6, 2.2);
 
-    const auto i1 = p9.first;
+    constexpr auto i1 = p9.first;
     volatile auto i2 = p9.second;
     const ciel::pair p11 = ciel::make_pair(i1, i2);
     ASSERT_EQ(p9, p10);

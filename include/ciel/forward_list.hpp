@@ -3,7 +3,6 @@
 
 #include <ciel/config.hpp>
 #include <ciel/iterator_impl/iterator_traits.hpp>
-#include <ciel/iterator_impl/legacy_input_iterator.hpp>
 #include <ciel/iterator_impl/next.hpp>
 #include <ciel/memory_impl/allocator.hpp>
 #include <ciel/memory_impl/allocator_traits.hpp>
@@ -190,7 +189,7 @@ private:
 
         CIEL_TRY {
             while (first != last) {
-                node_type *construct_place = node_alloc_traits::allocate(allocator_, 1);
+                node_type* construct_place = node_alloc_traits::allocate(allocator_, 1);
                 CIEL_TRY {
                     node_alloc_traits::construct(allocator_, construct_place, after_begin.base(), *first);
                     ++first;

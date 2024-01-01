@@ -32,13 +32,13 @@ TEST(any_tests, all) {
     // swap with big object
     ASSERT_FALSE(ciel::is_small_object<ciel::deque<int>>::value);
 
-    ciel::any b = ciel::deque<int>{0, 1, 2, 3, 4};
+    ciel::any b = ciel::deque{0, 1, 2, 3, 4};
     a.swap(b);
 
-    ASSERT_EQ(ciel::any_cast<ciel::deque<int>>(a), ciel::deque<int>({0, 1, 2, 3, 4}));
+    ASSERT_EQ(ciel::any_cast<ciel::deque<int>>(a), ciel::deque({0, 1, 2, 3, 4}));
     ASSERT_EQ(ciel::any_cast<int>(b), 1);
 
     // emplace
     a.emplace<ciel::vector<int>>({0, 1, 2, 3, 4});
-    ASSERT_EQ(ciel::any_cast<ciel::vector<int>>(a), ciel::vector<int>({0, 1, 2, 3, 4}));
+    ASSERT_EQ(ciel::any_cast<ciel::vector<int>>(a), ciel::vector({0, 1, 2, 3, 4}));
 }

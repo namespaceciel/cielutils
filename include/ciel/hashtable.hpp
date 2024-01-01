@@ -6,7 +6,9 @@
 #include <ciel/array.hpp>
 #include <ciel/config.hpp>
 #include <ciel/iterator_impl/distance.hpp>
+#include <ciel/memory_impl/addressof.hpp>
 #include <ciel/memory_impl/allocator_traits.hpp>
+#include <ciel/memory_impl/to_address.hpp>
 #include <ciel/memory_impl/unique_ptr.hpp>
 #include <ciel/utility_impl/pair.hpp>
 #include <cmath>
@@ -82,12 +84,34 @@ public:
     bucket_list_deallocator(size_type s, const allocator_type& alloc = allocator_type()) noexcept
         : size_(s), allocator_(alloc) {}
 
+    bucket_list_deallocator(bucket_list_deallocator&& other) noexcept
+        : size_(other.size_), allocator_(std::move(other.allocator_)) {
+        other.size_ = 0;
+    }
+
+    auto operator=(bucket_list_deallocator&& other) noexcept -> bucket_list_deallocator& {
+        if (this == addressof(other)) {
+            return *this;
+        }
+
+        size_ = other.size_;
+        allocator_ = std::move(other.allocator_);
+
+        other.size_ = 0;
+        return *this;
+    }
+
+    bucket_list_deallocator(const bucket_list_deallocator&) noexcept = default;
+    auto operator=(const bucket_list_deallocator&) noexcept -> bucket_list_deallocator& = default;
+
     [[nodiscard]] auto size() const noexcept -> size_type {
         return size_;
     }
 
     auto operator()(pointer p) noexcept -> void {
-        alloc_traits::deallocate(allocator_, p, size_);
+        if (size_ > 0) {
+            alloc_traits::deallocate(allocator_, p, size_);
+        }
     }
 
 };  // class bucket_list_deallocator
@@ -109,14 +133,14 @@ private:
     using bucket_list_type  = unique_ptr<node_type*[], bucket_list_deallocator<Allocator>>;
 
     node_type* it_;
-    const bucket_list_type& bucket_list_;
+    bucket_list_type* bucket_list_ptr_;   // reference implicitly deletes copy assignment
     size_type index_;
 
     template<class, class, class, class> friend class hashtable_iterator;
 
 public:
     [[nodiscard]] auto size() const noexcept -> size_type {
-        return bucket_list_.get_deleter().size();
+        return bucket_list_ptr_->get_deleter().size();
     }
 
     [[nodiscard]] auto index() const noexcept -> size_type {
@@ -125,15 +149,19 @@ public:
 
     hashtable_iterator() noexcept = default;
 
-    hashtable_iterator(const node_type* p, const bucket_list_type& bl, size_type i) noexcept
-        : it_(const_cast<node_type*>(p)), bucket_list_(bl), index_(i) {}
+    hashtable_iterator(const node_type* p, const bucket_list_type* blp, size_type i) noexcept
+        : it_(const_cast<node_type*>(p)),
+          bucket_list_ptr_(const_cast<bucket_list_type*>(blp)),
+          index_(i) {}
 
     hashtable_iterator(const hashtable_iterator&) noexcept = default;
     hashtable_iterator(hashtable_iterator&&) noexcept = default;
 
     template<class P, class R>
-    explicit hashtable_iterator(const hashtable_iterator<T, P, R, Allocator>& other) noexcept
-        : it_(const_cast<node_type*>(other.it_)), bucket_list_(other.bucket_list_), index_(other.index_) {}
+    hashtable_iterator(const hashtable_iterator<T, P, R, Allocator>& other) noexcept
+        : it_(const_cast<node_type*>(other.it_)),
+          bucket_list_ptr_(const_cast<bucket_list_type*>(other.bucket_list_ptr_)),
+          index_(other.index_) {}
 
     ~hashtable_iterator() = default;
 
@@ -159,13 +187,13 @@ public:
             it_ = it_->next_;
         } else {
             ++index_;
-            while (index_ != size() && !bucket_list_[index_]) {
+            while (index_ != size() && !(*bucket_list_ptr_)[index_]) {
                 ++index_;
             }
             if (index_ == size()) {
                 it_ = nullptr;
             } else {
-                it_ = bucket_list_[index_];
+                it_ = (*bucket_list_ptr_)[index_];
             }
         }
         return *this;
@@ -196,7 +224,7 @@ auto operator==(const hashtable_iterator<T, Pointer1, Reference1, Allocator>& lh
 template<class T, class Pointer1, class Pointer2, class Reference1, class Reference2, class Allocator>
 auto operator!=(const hashtable_iterator<T, Pointer1, Reference1, Allocator>& lhs,
                 const hashtable_iterator<T, Pointer2, Reference2, Allocator>& rhs) noexcept -> bool {
-    return !(lhs.base() == rhs.base());
+    return !(lhs == rhs);
 }
 
 template<class T, class Pointer, class Reference>
@@ -252,7 +280,7 @@ public:
 
     [[nodiscard]] auto operator++(int) noexcept -> hashtable_local_iterator {
         hashtable_local_iterator res(*this);
-        ++*this;
+        ++(*this);
         return res;
     }
 
@@ -275,7 +303,7 @@ template<class T, class Pointer1, class Pointer2, class Reference1, class Refere
 template<class T, class Pointer1, class Pointer2, class Reference1, class Reference2>
 [[nodiscard]] auto operator!=(const hashtable_local_iterator<T, Pointer1, Reference1>& lhs,
                               const hashtable_local_iterator<T, Pointer2, Reference2>& rhs) noexcept -> bool {
-    return !(lhs.base() == rhs.base());
+    return !(lhs == rhs);
 }
 
 template<class T, class Hash, class Equal, class Allocator>
@@ -338,16 +366,25 @@ private:
         --size_;
     }
 
-    auto do_rehash(size_type count) -> void {
+    auto do_rehash(const size_type count) -> void {
         auto& pointer_alloc = bucket_list_.get_deleter().allocator_;
         bucket_list_type new_bucket_list(pointer_alloc_traits::allocate(pointer_alloc, count), {count, pointer_alloc});
+
         for (size_type i = 0; i < count; ++i) {
             new_bucket_list[i] = nullptr;
         }
-        for (auto it = begin(); it != end(); ++it) {
+
+        for (auto it = begin(); it != end();) {
+            auto it_next = it;
+            ++it_next;
+
+            // insert at begin, take over the rest pointers
             it.base()->next_ = new_bucket_list[it.base()->hash_ % count];
             new_bucket_list[it.base()->hash_ % count] = it.base();
+
+            it = it_next;
         }
+
         bucket_list_ = std::move(new_bucket_list);
     }
 
@@ -358,6 +395,10 @@ public:
             auto& pointer_alloc = bucket_list_.get_deleter().allocator_;
             bucket_list_ = bucket_list_type(pointer_alloc_traits::allocate(pointer_alloc, bucket_count),
                                             {bucket_count, pointer_alloc});
+
+            for (size_type i = 0; i < bucket_count; ++i) {
+                bucket_list_[i] = nullptr;
+            }
         }
     }
 
@@ -369,6 +410,10 @@ public:
             auto& pointer_alloc = bucket_list_.get_deleter().allocator_;
             bucket_list_ = bucket_list_type(pointer_alloc_traits::allocate(pointer_alloc, bucket_count),
                                             {bucket_count, pointer_alloc});
+
+            for (size_type i = 0; i < bucket_count; ++i) {
+                bucket_list_[i] = nullptr;
+            }
         }
         range_insert_multi(first, last);
     }
@@ -381,6 +426,10 @@ public:
             auto& pointer_alloc = bucket_list_.get_deleter().allocator_;
             bucket_list_ = bucket_list_type(pointer_alloc_traits::allocate(pointer_alloc, bucket_count),
                                             {bucket_count, pointer_alloc});
+
+            for (size_type i = 0; i < bucket_count; ++i) {
+                bucket_list_[i] = nullptr;
+            }
         }
         range_insert_unique(first, last);
     }
@@ -393,6 +442,10 @@ public:
             auto& pointer_alloc = bucket_list_.get_deleter().allocator_;
             bucket_list_ = bucket_list_type(pointer_alloc_traits::allocate(pointer_alloc, other.bucket_count()),
                                             {other.bucket_count(), pointer_alloc});
+
+            for (size_type i = 0; i < other.bucket_count(); ++i) {
+                bucket_list_[i] = nullptr;
+            }
         }
         range_insert_multi(other.begin(), other.end());
     }
@@ -406,6 +459,10 @@ public:
             auto& pointer_alloc = bucket_list_.get_deleter().allocator_;
             bucket_list_ = bucket_list_type(pointer_alloc_traits::allocate(pointer_alloc, other.bucket_count()),
                                             {other.bucket_count(), pointer_alloc});
+
+            for (size_type i = 0; i < other.bucket_count(); ++i) {
+                bucket_list_[i] = nullptr;
+            }
         }
         range_insert_multi(other.begin(), other.end());
     }
@@ -431,34 +488,39 @@ public:
     }
 
     auto operator=(const hashtable& other) -> hashtable& {
-        if (this == addressof(other)) {
+        if (this == ciel::addressof(other)) [[unlikely]] {
             return *this;
         }
+
         if (alloc_traits::propagate_on_container_copy_assignment::value) {
             if (allocator_ != other.allocator_) {
-                hashtable(other.allocator_).swap(*this);
-                range_insert_multi(other.begin(), other.end());
+                hashtable(other).swap(*this);
                 return *this;
+
             }
             allocator_ = other.allocator_;
         }
+
         clear();
         range_insert_multi(other.begin(), other.end());
         return *this;
     }
 
     auto operator=(hashtable&& other) noexcept -> hashtable& {
-        if (this == addressof(other)) {
+        if (this == ciel::addressof(other)) [[unlikely]] {
             return *this;
         }
+
         if (!alloc_traits::propagate_on_container_move_assignment::value && allocator_ != other.allocator_) {
             clear();
             range_insert_multi(other.begin(), other.end());
             return *this;
         }
+
         if (alloc_traits::propagate_on_container_move_assignment::value) {
             allocator_ = std::move(other.allocator_);
         }
+
         clear();
         bucket_list_ = std::move(other.bucket_list_);
         size_ = other.size_;
@@ -474,29 +536,33 @@ public:
     }
 
     [[nodiscard]] auto begin() noexcept -> iterator {
-        for (size_type i = 0; i < bucket_count(); ++i) {
-            if (bucket_list_[i]) {
-                return iterator(bucket_list_[i], bucket_list_, i);
+        if (bucket_list_) {
+            for (size_type i = 0; i < bucket_count(); ++i) {
+                if (bucket_list_[i]) {
+                    return iterator(bucket_list_[i], &bucket_list_, i);
+                }
             }
         }
         return end();
     }
 
     [[nodiscard]] auto begin() const noexcept -> const_iterator {
-        for (size_type i = 0; i < bucket_count(); ++i) {
-            if (bucket_list_[i]) {
-                return const_iterator(bucket_list_[i], bucket_list_, i);
+        if (bucket_list_) {
+            for (size_type i = 0; i < bucket_count(); ++i) {
+                if (bucket_list_[i]) {
+                    return const_iterator(bucket_list_[i], &bucket_list_, i);
+                }
             }
         }
         return end();
     }
 
     [[nodiscard]] auto end() noexcept -> iterator {
-        return iterator(nullptr, bucket_list_, bucket_count());
+        return iterator(nullptr, &bucket_list_, bucket_count());
     }
 
     [[nodiscard]] auto end() const noexcept -> const_iterator {
-        return const_iterator(nullptr, bucket_list_, bucket_count());
+        return const_iterator(nullptr, &bucket_list_, bucket_count());
     }
 
     [[nodiscard]] auto empty() const noexcept -> bool {
@@ -512,11 +578,13 @@ public:
     }
 
     auto clear() noexcept -> void {
-        for (auto it = begin(); it != end();) {
-            destroy_and_deallocate_node(it++.base());
-        }
-        for (size_type i = 0; i < bucket_count(); ++i) {
-            bucket_list_[i] = nullptr;
+        if (bucket_list_) {
+            for (auto it = begin(); it != end();) {
+                destroy_and_deallocate_node(to_address(it++));
+            }
+            for (size_type i = 0; i < bucket_count(); ++i) {
+                bucket_list_[i] = nullptr;
+            }
         }
     }
 
@@ -525,7 +593,7 @@ public:
         if constexpr (is_forward_iterator<Iter>::value) {
             auto len = ciel::distance(first, last);
             if (const size_type new_bucket_count = (size() + len) / max_load_factor();
-                new_bucket_count > bucket_count()) {
+                    new_bucket_count > bucket_count()) {
                 do_rehash(next_prime(new_bucket_count));
             }
         }
@@ -537,12 +605,13 @@ public:
     template<legacy_input_iterator Iter>
     auto range_insert_multi(Iter first, Iter last) -> void {
         if constexpr (is_forward_iterator<Iter>::value) {
-            auto len = ciel::distance(first, last);
+            const auto len = ciel::distance(first, last);
             if (const size_type new_bucket_count = (size() + len) / max_load_factor();
-                new_bucket_count > bucket_count()) {
+                    new_bucket_count > bucket_count()) {
                 do_rehash(next_prime(new_bucket_count));
             }
         }
+
         while (first != last) {
             emplace_multi(*first++);
         }
@@ -553,17 +622,20 @@ public:
         if (bucket_count() == 0 || load_factor() >= max_load_factor()) {
             do_rehash(next_prime(bucket_count()));
         }
+
         node_type* new_node = allocate_and_construct_node(std::forward<Args>(args)...);
         size_type new_node_index = new_node->hash_ % bucket_count();
+
         for (auto it = begin(new_node_index); it != end(new_node_index); ++it) {
             if (ke_(new_node->value_, *it)) {
                 destroy_and_deallocate_node(new_node);
-                return {{it.base(), bucket_list_, new_node_index}, false};
+                return {{to_address(it), &bucket_list_, new_node_index}, false};
             }
         }
+
         new_node->next_ = bucket_list_[new_node_index];
         bucket_list_[new_node_index] = new_node;
-        return {{new_node, bucket_list_, new_node_index}, true};
+        return {{new_node, &bucket_list_, new_node_index}, true};
     }
 
     template<class... Args>
@@ -571,19 +643,21 @@ public:
         if (bucket_count() == 0 || load_factor() >= max_load_factor()) {
             do_rehash(next_prime(bucket_count()));
         }
+
         node_type* new_node = allocate_and_construct_node(std::forward<Args>(args)...);
         size_type new_node_index = new_node->hash_ % bucket_count();
 
         if (bucket_list_[new_node_index] == nullptr) {
             bucket_list_[new_node_index] = new_node;
-            return {new_node, bucket_list_, new_node_index};
+            return {new_node, &bucket_list_, new_node_index};
         }
+
         // find the first equal element or nullptr, insert there
         for (auto it = begin(new_node_index); ; ++it) {
             if (it.base()->next_ == nullptr || ke_(it.base()->next_->value_, new_node->value_)) {
                 new_node->next_ = it.base()->next_;
                 it.base()->next_ = new_node;
-                return {new_node, bucket_list_, new_node_index};
+                return {new_node, &bucket_list_, new_node_index};
             }
         }
         unreachable();
@@ -602,15 +676,17 @@ public:
         // if pos is the first of current bucket
         if (pos.base() == bucket_list_[bucket_index]) {
             bucket_list_[bucket_index] = pos.base()->next_;
-            destroy_and_deallocate_node(pos.base());
+            destroy_and_deallocate_node(to_address(pos));
             return res;
         }
 
         // find the previous node of pos and change it's next
         node_type* before_pos = bucket_list_[bucket_index];
         for (; before_pos->next_ != pos.base(); before_pos = before_pos->next_) {}
+
         before_pos->next_ = pos.base()->next_;
-        destroy_and_deallocate_node(pos.base());
+        destroy_and_deallocate_node(to_address(pos));
+
         return res;
     }
 
@@ -623,10 +699,11 @@ public:
 
     template<class Key>
     auto erase_unique(const Key& key) -> size_type {
-        iterator pos(find(key));
+        iterator pos = find(key);
         if (pos == end()) {
             return 0;
         }
+
         erase(pos);
         return 1;
     }
@@ -634,7 +711,7 @@ public:
     template<class Key>
     auto erase_multi(const Key& key) -> size_type {
         size_type res(0);
-        iterator pos(find(key));
+        iterator pos = find(key);
         if (pos != end()) {
             do {
                 erase(pos++);
@@ -662,7 +739,7 @@ public:
     template<class Key>
     [[nodiscard]] auto count_multi(const Key& key) const -> size_type {
         size_type res(0);
-        iterator pos(find(key));
+        iterator pos = find(key);
         if (pos != end()) {
             do {
                 ++pos;
@@ -673,17 +750,20 @@ public:
     }
 
     template<class Key>
-    [[nodiscard]] auto find(const Key& key) const -> const_iterator {
+    [[nodiscard]] auto find(const Key& key) const -> iterator {
         if (bucket_count() == 0) {
             return end();
         }
+
         const size_type hash = hasher_(key);
         const size_type bucket_index = hash % bucket_count();
+
         for (auto it = begin(bucket_index); it != end(bucket_index); ++it) {
             if (ke_(*it, key)) {
-                return {it.base(), bucket_list_, bucket_index};
+                return {to_address(it), &bucket_list_, bucket_index};
             }
         }
+
         return end();
     }
 
@@ -693,24 +773,30 @@ public:
     }
 
     template<class Key>
-    [[nodiscard]] auto equal_range(const Key& key) const -> pair<const_iterator, const_iterator> {
+    [[nodiscard]] auto equal_range(const Key& key) const -> pair<iterator, iterator> {
         iterator first = find(key);
         if (first == end()) {
             return {first, first};
         }
+
         iterator last = first;
         ++last;
         while (last != end() && ke_(*last, key)) {
             ++last;
         }
+
         return {first, last};
     }
 
     [[nodiscard]] auto begin(const size_type n) -> local_iterator {
+        CIEL_PRECONDITION(n < bucket_count());
+
         return local_iterator{bucket_list_[n]};
     }
 
     [[nodiscard]] auto begin(const size_type n) const -> const_local_iterator {
+        CIEL_PRECONDITION(n < bucket_count());
+
         return const_local_iterator{bucket_list_[n]};
     }
 
@@ -728,7 +814,7 @@ public:
 
     [[nodiscard]] auto bucket_size(const size_type n) const -> size_type {
         size_type res = 0;
-        for (auto it = begin(n); it != end(n); ++it, ++res);
+        for (auto it = begin(n); it != end(n); ++it, ++res) {}
         return res;
     }
 
@@ -775,11 +861,13 @@ template<class Key, class Hash, class KeyEqual, class Allocator>
     if (lhs.size() != rhs.size()) {
         return false;
     }
+
     for (auto it = lhs.begin(); it != lhs.end(); ++it) {
         if (!rhs.contains(*it)) {
             return false;
         }
     }
+
     return true;
 }
 

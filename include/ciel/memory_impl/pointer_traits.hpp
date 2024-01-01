@@ -44,7 +44,7 @@ struct pointer_has_difference_type : false_type {};
 template<class T>
 struct pointer_has_difference_type<T, void_t<typename T::difference_type>> : true_type {};
 
-template<class Ptr, bool = pointer_has_difference_type<Ptr>::type>
+template<class Ptr, bool = pointer_has_difference_type<Ptr>::value>
 struct difference_type_of {
     using type = ptrdiff_t;
 };
@@ -110,10 +110,10 @@ struct pointer_traits<Ptr> {
     }
 
     // used in container iterator
-    [[nodiscard]] static auto to_address(const Ptr& r) -> typename Ptr::pointer
-        requires (requires (Ptr p) { p.base(); typename Ptr::pointer; }) {
+    [[nodiscard]] static auto to_address(const Ptr& r)
+        requires (requires (Ptr p) { p.base(); }) {
         return r.base();
-        }
+    }
 
 };    // struct pointer_traits
 

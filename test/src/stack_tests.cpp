@@ -27,21 +27,21 @@ TEST(stack_tests, all) {
         v.emplace_back(s2.top());
         s2.pop();
     }
-    ASSERT_EQ(v, ciel::vector<int>({0, 1, 2, 3, 4, 5, 6, 7, 8, 9}));
+    ASSERT_EQ(v, ciel::vector({0, 1, 2, 3, 4, 5, 6, 7, 8, 9}));
     v.clear();
 
     while (!s5.empty()) {
         v.emplace_back(s5.top());
         s5.pop();
     }
-    ASSERT_EQ(v, ciel::vector<int>({0, 1, 2, 3, 4, 5, 6, 7, 8, 9}));
+    ASSERT_EQ(v, ciel::vector({0, 1, 2, 3, 4, 5, 6, 7, 8, 9}));
     v.clear();
 
     while (!s6.empty()) {
         v.emplace_back(s6.top());
         s6.pop();
     }
-    ASSERT_EQ(v, ciel::vector<int>({0, 1, 2, 3, 4, 5, 6, 7, 8, 9}));
+    ASSERT_EQ(v, ciel::vector({0, 1, 2, 3, 4, 5, 6, 7, 8, 9}));
     v.clear();
 
     for (int i = 9; i >= 0; --i) {

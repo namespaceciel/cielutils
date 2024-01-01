@@ -39,7 +39,7 @@ public:
 
     queue(queue&& other) noexcept : c_(std::move(other.c_)) {}
 
-    template<legacy_input_iterator Iter>
+    template<class Iter>
     queue(Iter first, Iter last) : c_(first, last) {}
 
     template<class Alloc>
@@ -62,7 +62,7 @@ public:
         requires uses_allocator_v<container_type, Alloc>
     queue(queue&& other, const Alloc& alloc) : c_(std::move(other.c_), alloc) {}
 
-    template<legacy_input_iterator Iter, class Alloc>
+    template<class Iter, class Alloc>
         requires uses_allocator_v<container_type, Alloc>
     queue(Iter first, Iter last, const Alloc& alloc) : c_(first, last, alloc) {}
 
@@ -206,20 +206,20 @@ public:
 
     priority_queue(priority_queue&& other) noexcept = default;
 
-    template<legacy_input_iterator Iter>
+    template<class Iter>
     priority_queue(Iter first, Iter last, const value_compare& compare = value_compare())
         : c_(first, last), comp_(compare) {
         ciel::make_heap(c_.begin(), c_.end(), comp_);
     }
 
-    template<legacy_input_iterator Iter>
+    template<class Iter>
     priority_queue(Iter first, Iter last, const value_compare& compare, const container_type& cont)
         : c_(cont), comp_(compare) {
         c_.insert(c_.end(), first, last);
         ciel::make_heap(c_.begin(), c_.end(), comp_);
     }
 
-    template<legacy_input_iterator Iter>
+    template<class Iter>
     priority_queue(Iter first, Iter last, const value_compare& compare, container_type&& cont)
         : c_(std::move(cont)), comp_(compare) {
         c_.insert(c_.end(), first, last);
@@ -260,7 +260,7 @@ public:
     priority_queue(priority_queue&& other, const Alloc& alloc)
         : c_(std::move(other.c_), alloc), comp_(std::move(other.comp_)) {}
 
-    template<legacy_input_iterator Iter, class Alloc>
+    template<class Iter, class Alloc>
         requires uses_allocator_v<container_type, Alloc>
     priority_queue(Iter first, Iter last, const Alloc& alloc)
         : c_(alloc), comp_(value_compare()) {
@@ -268,7 +268,7 @@ public:
         ciel::make_heap(c_.begin(), c_.end(), comp_);
     }
 
-    template<legacy_input_iterator Iter, class Alloc>
+    template<class Iter, class Alloc>
         requires uses_allocator_v<container_type, Alloc>
     priority_queue(Iter first, Iter last, const value_compare& compare, const Alloc& alloc)
         : c_(alloc), comp_(compare) {
@@ -276,7 +276,7 @@ public:
         ciel::make_heap(c_.begin(), c_.end(), comp_);
     }
 
-    template<legacy_input_iterator Iter, class Alloc>
+    template<class Iter, class Alloc>
         requires uses_allocator_v<container_type, Alloc>
     priority_queue(Iter first, Iter last, const value_compare& compare, const container_type& cont, const Alloc& alloc)
         : c_(cont, alloc), comp_(compare) {
@@ -284,7 +284,7 @@ public:
         ciel::make_heap(c_.begin(), c_.end(), comp_);
     }
 
-    template<legacy_input_iterator Iter, class Alloc>
+    template<class Iter, class Alloc>
         requires uses_allocator_v<container_type, Alloc>
     priority_queue(Iter first, Iter last, const value_compare& compare, container_type&& cont, const Alloc& alloc)
         : c_(std::move(cont), alloc), comp_(compare) {

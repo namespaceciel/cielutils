@@ -32,7 +32,7 @@ public:
 
     stack(stack&& other) noexcept : c_(std::move(other.c_)) {}
 
-    template<legacy_input_iterator Iter>
+    template<class Iter>
     stack(Iter first, Iter last) : c_(first, last) {}
 
     template<class Alloc>
@@ -55,7 +55,7 @@ public:
         requires uses_allocator_v<container_type, Alloc>
     stack(stack&& other, const Alloc& alloc) : c_(std::move(other.c_), alloc) {}
 
-    template<legacy_input_iterator Iter, class Alloc>
+    template<class Iter, class Alloc>
         requires uses_allocator_v<container_type, Alloc>
     stack(Iter first, Iter last, const Alloc& alloc) : c_(first, last, alloc) {}
 

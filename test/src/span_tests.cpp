@@ -5,12 +5,12 @@
 #include <ciel/vector.hpp>
 
 TEST(span_tests, empty_span) {
-    const ciel::span<int, 0> s1;
+    constexpr ciel::span<int, 0> s1;
     ASSERT_TRUE(s1.empty());
     ASSERT_EQ(s1.size(), 0);
     ASSERT_EQ(s1.size_bytes(), 0);
 
-    const ciel::span<int> s2;
+    constexpr ciel::span<int> s2;
     ASSERT_TRUE(s2.empty());
     ASSERT_EQ(s2.size(), 0);
     ASSERT_EQ(s2.size_bytes(), 0);
@@ -18,7 +18,7 @@ TEST(span_tests, empty_span) {
 
 TEST(span_tests, constructors_of_fixed_span) {
     int stack_arr[5]{0, 1, 2, 3, 4};
-    int* heap_arr = new int[5]{0, 1, 2, 3, 4};
+    auto* heap_arr = new int[5]{0, 1, 2, 3, 4};
     ciel::array arr{0, 1, 2, 3, 4};
 
     const ciel::span<int, 3> s1{stack_arr, 3};
@@ -42,21 +42,21 @@ TEST(span_tests, constructors_of_fixed_span) {
         ASSERT_EQ(s3[i], i);
     }
 
-    const ciel::span<int, 5> s4{stack_arr};
+    const ciel::span s4{stack_arr};
     ASSERT_FALSE(s4.empty());
     ASSERT_EQ(s4.size(), 5);
     for (size_t i = 0; i < s4.size(); ++i) {
         ASSERT_EQ(s4[i], i);
     }
 
-    const ciel::span<int, 5> s5{arr};
+    const ciel::span s5{arr};
     ASSERT_FALSE(s5.empty());
     ASSERT_EQ(s5.size(), 5);
     for (size_t i = 0; i < s5.size(); ++i) {
         ASSERT_EQ(s5[i], i);
     }
 
-    const ciel::span<int, 5> s6{s5};
+    const ciel::span s6{s5};
     ASSERT_FALSE(s6.empty());
     ASSERT_EQ(s6.size(), 5);
     for (size_t i = 0; i < s6.size(); ++i) {
@@ -68,7 +68,7 @@ TEST(span_tests, constructors_of_fixed_span) {
 
 TEST(span_tests, constructors_of_dynamic_span) {
     int stack_arr[5]{0, 1, 2, 3, 4};
-    int* heap_arr = new int[5]{0, 1, 2, 3, 4};
+    auto* heap_arr = new int[5]{0, 1, 2, 3, 4};
     ciel::array arr{0, 1, 2, 3, 4};
     ciel::vector vec{0, 1, 2, 3 ,4};
 
@@ -107,7 +107,7 @@ TEST(span_tests, constructors_of_dynamic_span) {
         ASSERT_EQ(s5[i], i);
     }
 
-    const ciel::span<int> s6{s5};
+    const ciel::span s6{s5};
     ASSERT_FALSE(s6.empty());
     ASSERT_EQ(s6.size(), 5);
     for (size_t i = 0; i < s6.size(); ++i) {

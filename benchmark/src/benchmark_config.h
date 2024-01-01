@@ -7,12 +7,23 @@
 #include <random>
 
 // needed by EASTL
-inline void* __cdecl operator new[](const size_t size,
-                                    const char* name,
-                                    const int flags,
-                                    const unsigned debugFlags,
-                                    const char* file,
-                                    const int line) {
+inline void* operator new[](const size_t size,
+                            const char* pName,
+                            const int flags,
+                            const unsigned debugFlags,
+                            const char* file,
+                            const int line) {
+    return new uint8_t[size];
+}
+
+inline void* operator new[](const size_t size,
+                            const size_t alignment,
+                            const size_t alignmentOffset,
+                            const char* pName,
+                            const int flags,
+                            const unsigned debugFlags,
+                            const char* file,
+                            const int line) {
     return new uint8_t[size];
 }
 
@@ -116,7 +127,7 @@ void set_insert_benchmark() noexcept {
     std::random_device rd;
     std::mt19937_64 g(rd());
 
-    for (int i = 0; i < 100000; ++i) {
+    for (int i = 0; i < 10000; ++i) {
         c.insert(g());
     }
 }
@@ -127,7 +138,7 @@ template<class Container, class value_type = typename Container::value_type>
 void set_sorted_insert_benchmark() noexcept {
     Container c;
 
-    for (uint64_t i = 0; i < 100000ULL; ++i) {
+    for (uint64_t i = 0; i < 10000ULL; ++i) {
         c.insert(i);
     }
 }
@@ -160,6 +171,16 @@ void set_erase_benchmark(Set s) noexcept {
         if(++it == s.end()) {
             it = s.begin();
         }
+    }
+}
+
+template<class Set>
+void set_erase_value_benchmark(Set s) noexcept {
+    std::random_device rd;
+    std::mt19937_64 g(rd());
+
+    for (int i = 0;  i < 1000; ++i) {
+        s.erase(g() % 10000);
     }
 }
 

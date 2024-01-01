@@ -12,7 +12,7 @@ union [[maybe_unused]] Union {};
 [[maybe_unused]] auto FunctionIntDouble(double /*unused*/) -> int { return 0; }
 [[maybe_unused]] void (* FunctionVoidVoidptr)() = FunctionVoidVoid;
 struct [[maybe_unused]] Pod {
-    int a;
+    [[maybe_unused]] int a;
 };
 struct [[maybe_unused]] NonPod {
     NonPod() {}
@@ -21,8 +21,8 @@ struct [[maybe_unused]] Virtual {
     virtual ~Virtual() {}
 };
 struct [[maybe_unused]] NotAlign {
-    char a;
-    int b;
+    [[maybe_unused]] char a;
+    [[maybe_unused]] int b;
 };
 struct [[maybe_unused]] Abstract {
     virtual ~Abstract() = 0;
@@ -32,7 +32,7 @@ enum struct [[maybe_unused]] EnumStruct :int { oz };
 enum class [[maybe_unused]] EnumClass : int {};
 class [[maybe_unused]] A {};
 class [[maybe_unused]] B : public A {};
-class [[maybe_unused]] C : private B {};    // private inherit, C pointer can't transform to B
+class [[maybe_unused]] C : B {};    // private inherit, C pointer can't transform to B
 struct [[maybe_unused]] ClassOperatorInt {
     operator int() const noexcept(false) { return 0; }
 };
@@ -149,7 +149,7 @@ TEST(type_traits_tests, all) {
     static_assert(!ciel::is_pointer_v<decltype(nullptr)>);
     // std::nullptr_t is not pointer type, but can convert to any pointer type
     static_assert(!ciel::is_pointer_v<std::nullptr_t>);
-    static_assert(ciel::is_pointer_v<decltype((void*)nullptr)>);
+    static_assert(ciel::is_pointer_v<decltype(static_cast<void*>(nullptr))>);
 
     // is_lvalue_reference
     static_assert(ciel::is_lvalue_reference_v<int&>);

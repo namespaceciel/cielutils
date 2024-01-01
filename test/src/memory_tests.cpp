@@ -29,18 +29,17 @@ private:
 
 struct A {};
 struct B : A {};
-struct C : private B {};
 
 struct EmptyDeleter {
     void operator()(...) const noexcept {}
 };
 
-void IntFunctionDeleter(int* ptr) noexcept {
+void IntFunctionDeleter(const int* ptr) noexcept {
     delete ptr;
 }
 
 struct StructOperatorDeleter {
-    void operator()(int* ptr) const noexcept {
+    void operator()(const int* ptr) const noexcept {
         delete ptr;
     }
 };
@@ -50,7 +49,7 @@ struct Constructor_And_Destructor_Counter {
     inline static size_t dtor = 0;
     Constructor_And_Destructor_Counter() noexcept {
         ++ctor;
-    };
+    }
     ~Constructor_And_Destructor_Counter() {
         ++dtor;
     }
@@ -63,7 +62,7 @@ struct Loop_ASSERT_EQ1 {
     inline static size_t dtor = 0;
     Loop_ASSERT_EQ1() noexcept {
         ++ctor;
-    };
+    }
     ~Loop_ASSERT_EQ1() {
         ++dtor;
     }
@@ -74,7 +73,7 @@ struct Loop_ASSERT_EQ2 {
     inline static size_t dtor = 0;
     Loop_ASSERT_EQ2() noexcept {
         ++ctor;
-    };
+    }
     ~Loop_ASSERT_EQ2() {
         ++dtor;
     }
@@ -115,7 +114,7 @@ TEST(memory_tests, unique_ptr) {
     ciel::unique_ptr<int> ptr4(new int{1});
     ASSERT_EQ(*ptr4, 1);
 
-    const ciel::unique_ptr<int> ptr5(std::move(ptr4));
+    const ciel::unique_ptr ptr5(std::move(ptr4));
     ASSERT_EQ(*ptr5, 1);
     ASSERT_EQ(ptr4, nullptr);
 
@@ -126,7 +125,7 @@ TEST(memory_tests, unique_ptr) {
     const ciel::unique_ptr<A> ptr9 = ciel::make_unique<A>();
 
     ciel::unique_ptr<int[]> ptr10;
-    ciel::unique_ptr<int[]> ptr11(std::move(ptr10));
+    ciel::unique_ptr ptr11(std::move(ptr10));
     ciel::unique_ptr<int[]> ptr12(new int[]{0, 1, 2, 3, 4});
     for (size_t i = 0; i < 5; ++i) {
         ASSERT_EQ(ptr12[i], i);
@@ -140,16 +139,16 @@ TEST(memory_tests, unique_ptr) {
         ASSERT_EQ(ptr10[i], 0);
     }
 
-    int* arr = new int[]{0, 1, 2, 3, 4};
+    auto* arr = new int[]{0, 1, 2, 3, 4};
     const ciel::unique_ptr<int[]> ptr13(arr);
 
     ciel::unique_ptr<ciel::unique_ptr<int>> ptr14(new ciel::unique_ptr<int>(new int(5)));
-    const ciel::unique_ptr<ciel::unique_ptr<int>> ptr15(std::move(ptr14));
+    const ciel::unique_ptr ptr15(std::move(ptr14));
 
-    const ciel::unique_ptr<int, void (*)(int*)> ptr16(new int{5}, IntFunctionDeleter);
+    const ciel::unique_ptr<int, void (*)(const int*)> ptr16(new int{5}, IntFunctionDeleter);
     const ciel::unique_ptr<int, StructOperatorDeleter> ptr17(new int{5}, StructOperatorDeleter{});
-    const ciel::unique_ptr<int, std::function<void(int*)>> ptr18(new int{5}, [](int* ptr) { delete ptr; });
-    const ciel::unique_ptr<int[], std::function<void(int*)>> ptr19(new int[]{1,5}, [](int* ptr) { delete[] ptr; });
+    const ciel::unique_ptr<int, std::function<void(int*)>> ptr18(new int{5}, [](const int* ptr) { delete ptr; });
+    const ciel::unique_ptr<int[], std::function<void(int*)>> ptr19(new int[]{1,5}, [](const int* ptr) { delete[] ptr; });
 }
 
 TEST(memory_tests, shared_ptr) {
@@ -166,20 +165,21 @@ TEST(memory_tests, shared_ptr) {
     ASSERT_EQ(CADC::dtor, 1);
     {
         const ciel::shared_ptr<CADC> ptr(new CADC);
-        const ciel::shared_ptr<CADC> ptr2(ptr);
+        const ciel::shared_ptr ptr2(ptr);
     }
     ASSERT_EQ(CADC::ctor, 2);
     ASSERT_EQ(CADC::dtor, 2);
     {
         const ciel::shared_ptr<CADC[]> ptr(new CADC[3]);
-        const ciel::shared_ptr<CADC[]> ptr2(ptr);
+        const ciel::shared_ptr ptr2(ptr);
     }
     ASSERT_EQ(CADC::ctor, 5);
     ASSERT_EQ(CADC::dtor, 5);
 
-    auto* lc1 = new Loop_ASSERT_EQ1;
-    auto* lc2 = new Loop_ASSERT_EQ2;
     {
+        auto* lc1 = new Loop_ASSERT_EQ1;
+        auto* lc2 = new Loop_ASSERT_EQ2;
+
         const ciel::shared_ptr<Loop_ASSERT_EQ1> ptr1(lc1);
         const ciel::shared_ptr<Loop_ASSERT_EQ2> ptr2(lc2);
         ptr1->p = ptr2;

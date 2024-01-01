@@ -16,7 +16,7 @@ TEST(algorithm_tests, partial_sort) {
     }
 
     for (size_t loop = 0; loop < 20; ++loop) {
-        std::shuffle(v.begin(), v.end(), g);
+        std::ranges::shuffle(v, g);
 
         ciel::partial_sort(v.begin(), v.begin() + 3426, v.end());
         ASSERT_TRUE(ciel::is_sorted(v.begin(), v.begin() + 3426));
@@ -30,7 +30,7 @@ TEST(algorithm_tests, partial_sort) {
     }
 
     for (size_t loop = 0; loop < 20; ++loop) {
-        std::shuffle(v.begin(), v.end(), g);
+        std::ranges::shuffle(v, g);
 
         ciel::partial_sort(v.begin(), v.begin() + 7426, v.end());
         ASSERT_TRUE(ciel::is_sorted(v.begin(), v.begin() + 7426));
@@ -50,7 +50,7 @@ TEST(algorithm_tests, sort) {
     }
 
     for (size_t loop = 0; loop < 20; ++loop) {
-        std::shuffle(v.begin(), v.end(), g);
+        std::ranges::shuffle(v, g);
 
         ciel::sort(v.begin(), v.end());
         ASSERT_TRUE(ciel::is_sorted(v.begin(), v.end()));
@@ -61,7 +61,7 @@ TEST(algorithm_tests, sort) {
     }
 
     for (size_t loop = 0; loop < 20; ++loop) {
-        std::shuffle(v.begin(), v.end(), g);
+        std::ranges::shuffle(v, g);
 
         ciel::sort(v.begin(), v.end());
         ASSERT_TRUE(ciel::is_sorted(v.begin(), v.end()));
@@ -78,7 +78,7 @@ TEST(algorithm_tests, stable_sort) {
     }
 
     for (size_t loop = 0; loop < 20; ++loop) {
-        std::shuffle(v.begin(), v.end(), g);
+        std::ranges::shuffle(v, g);
 
         ciel::stable_sort(v.begin(), v.end());
         ASSERT_TRUE(ciel::is_sorted(v.begin(), v.end()));
@@ -89,7 +89,7 @@ TEST(algorithm_tests, stable_sort) {
     }
 
     for (size_t loop = 0; loop < 20; ++loop) {
-        std::shuffle(v.begin(), v.end(), g);
+        std::ranges::shuffle(v, g);
 
         ciel::stable_sort(v.begin(), v.end());
         ASSERT_TRUE(ciel::is_sorted(v.begin(), v.end()));
@@ -114,7 +114,7 @@ TEST(algorithm_tests, stable_sort_stability) {
     }
 
     for (size_t loop = 0; loop < 10; ++loop) {
-        std::shuffle(v.begin(), v.end(), g);
+        std::ranges::shuffle(v, g);
 
         ciel::vector<ciel::pair<size_t, size_t>> vp;
         for (size_t i = 0; i < v.size(); ++i) {

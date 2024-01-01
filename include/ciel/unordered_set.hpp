@@ -57,7 +57,7 @@ public:
     explicit unordered_set(const allocator_type& alloc)
         : unordered_set(0, hasher(), key_equal(), alloc) {}
 
-    template<legacy_input_iterator Iter>
+    template<class Iter>
     unordered_set(Iter first, Iter last,
                   const size_type bucket_count = 0,
                   const hasher& hash = hasher(),
@@ -65,13 +65,13 @@ public:
                   const allocator_type& alloc = allocator_type())
         : table_(false_type{}, first, last, bucket_count, hash, equal, alloc) {}
 
-    template<legacy_input_iterator Iter>
+    template<class Iter>
     unordered_set(Iter first, Iter last,
                   const size_type bucket_count,
                   const allocator_type& alloc)
         : unordered_set(first, last, bucket_count, hasher(), key_equal(), alloc) {}
 
-    template<legacy_input_iterator Iter>
+    template<class Iter>
     unordered_set(Iter first, Iter last,
                   const size_type bucket_count,
                   const hasher& hash,
@@ -186,7 +186,7 @@ public:
 //      return emplace_hint(hint, std::move(value));
 //  }
 
-    template<legacy_input_iterator Iter>
+    template<class Iter>
     auto insert(Iter first, Iter last) -> void {
         table_.range_insert_unique(first, last);
     }

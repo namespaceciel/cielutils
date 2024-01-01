@@ -12,12 +12,12 @@ struct IntLike {
 [[maybe_unused]] void swap(IntLike& lhs, int& rhs) noexcept {
     std::swap(lhs.v, rhs);
 }
-void swap(int& lhs, IntLike& rhs) noexcept {
+[[maybe_unused]] void swap(int& lhs, IntLike& rhs) noexcept {
     std::swap(lhs, rhs.v);
 }
 
 struct HasSwap {
-    void swap(HasSwap& /*unused*/) const noexcept {}
+    [[maybe_unused]] static void swap(HasSwap& /*unused*/) noexcept {}
 };
 
 size_t count = 0;

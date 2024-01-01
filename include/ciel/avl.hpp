@@ -6,7 +6,6 @@
 #include <ciel/algorithm_impl/max.hpp>
 #include <ciel/config.hpp>
 #include <ciel/iterator_impl/iterator_tag.hpp>
-#include <ciel/iterator_impl/legacy_input_iterator.hpp>
 #include <ciel/iterator_impl/reverse_iterator.hpp>
 #include <ciel/memory_impl/allocator_traits.hpp>
 #include <ciel/utility_impl/pair.hpp>
@@ -509,6 +508,7 @@ public:
         if (end_node_.left_ != nullptr) {
             static_cast<node_type*>(end_node_.left_)->parent_ = &end_node_;
         }
+
         other.start_ = &other.end_node_;
         other.end_node_.left_ = nullptr;
         other.size_ = 0;
@@ -520,6 +520,7 @@ public:
         if (end_node_.left_ != nullptr) {
             static_cast<node_type*>(end_node_.left_)->parent_ = &end_node_;
         }
+
         other.start_ = &other.end_node_;
         other.end_node_.left_ = nullptr;
         other.size_ = 0;
@@ -533,6 +534,7 @@ public:
         if (this == addressof(other)) {
             return *this;
         }
+
         if (alloc_traits::propagate_on_container_copy_assignment::value) {
             if (allocator_ != other.allocator_) {
                 avl(other.allocator_).swap(*this);
@@ -541,6 +543,7 @@ public:
             }
             allocator_ = other.allocator_;
         }
+
         clear();
         range_insert_multi(other.begin(), other.end());
         return *this;
@@ -550,11 +553,13 @@ public:
         if (this == addressof(other)) {
             return *this;
         }
+
         if (!alloc_traits::propagate_on_container_move_assignment::value && allocator_ != other.allocator_) {
             clear();
             range_insert_multi(other.begin(), other.end());
             return *this;
         }
+
         if (alloc_traits::propagate_on_container_move_assignment::value) {
             allocator_ = std::move(other.allocator_);
         }
@@ -658,6 +663,7 @@ public:
         node_type* new_node = allocate_and_construct_node(std::forward<Args>(args)...);
         if (iterator hint = lower_bound(new_node->value_); is_right_insert_unique_place(hint, new_node->value_)) {
             return {insert_node_at(hint, new_node), true};
+
         } else {
             destroy_and_deallocate_node(iterator(new_node));
             return {hint, false};
@@ -674,11 +680,14 @@ public:
     template<class... Args>
     auto emplace_unique_hint(iterator hint, Args&& ... args) -> iterator {
         node_type* new_node = allocate_and_construct_node(std::forward<Args>(args)...);
+
         if (!is_right_insert_multi_place(hint, new_node->value_)) {
             hint = lower_bound(new_node->value_);
         }
+
         if (is_right_insert_unique_place(hint, new_node->value_)) {
             return insert_node_at(hint, new_node);
+
         } else {
             destroy_and_deallocate_node(iterator(new_node));
             return hint;
@@ -688,9 +697,11 @@ public:
     template<class... Args>
     auto emplace_multi_hint(iterator hint, Args&& ... args) -> iterator {
         node_type* new_node = allocate_and_construct_node(std::forward<Args>(args)...);
+
         if (!is_right_insert_multi_place(hint, new_node->value_)) {
             hint = lower_bound(new_node->value_);
         }
+
         return insert_node_at(hint, new_node);
     }
 
@@ -714,18 +725,21 @@ public:
 
         auto* temp_start = start_;
         swap(end_node_, other.end_node_);
+
         if (end_node_.left_ != nullptr) {
             static_cast<node_type*>(end_node_.left_)->parent_ = &end_node_;
             start_ = other.start_;
         } else {
             start_ = &end_node_;
         }
+
         if (other.end_node_.left_ != nullptr) {
             static_cast<node_type*>(other.end_node_.left_)->parent_ = &other.end_node_;
             other.start_ = temp_start;
         } else {
             other.start_ = &other.end_node_;
         }
+
         swap(size_, other.size_);
         swap(allocator_, other.allocator_);
         swap(comp_, other.comp_);
@@ -754,9 +768,11 @@ public:
     template<class Key>
     [[nodiscard]] auto find(const Key& key) const noexcept -> const_iterator {
         auto lb = lower_bound(key);
+
         if (lb != end() && !comp_(key, *lb)) {
             return lb;
         }
+
         return end();
     }
 
@@ -774,6 +790,7 @@ public:
     [[nodiscard]] auto lower_bound(const Key& key) const noexcept -> const_iterator {
         iterator root(end().left());
         iterator res(end());
+
         while (root) {
             if (!comp_(*root, key)) {
                 res = root;
@@ -789,6 +806,7 @@ public:
     [[nodiscard]] auto upper_bound(const Key& key) const noexcept -> const_iterator {
         iterator root(end().left());
         iterator res(end());
+
         while (root) {
             if (comp_(key, *root)) {
                 res = root;

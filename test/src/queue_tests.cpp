@@ -34,7 +34,7 @@ TEST(queue_tests, priority_queue2) {
         v.emplace_back(i);
     }
     for (size_t loop = 0; loop < 20; ++loop) {
-        std::shuffle(v.begin(), v.end(), g);
+        std::ranges::shuffle(v, g);
 
         ciel::priority_queue<size_t> pq(ciel::less<size_t>(), std::move(v));
         ASSERT_TRUE(v.empty());
@@ -60,7 +60,7 @@ TEST(queue_tests, priority_queue3) {
         v.emplace_back(i);
     }
     for (size_t loop = 0; loop < 20; ++loop) {
-        std::shuffle(v.begin(), v.end(), g);
+        std::ranges::shuffle(v, g);
 
         ciel::make_heap(v.begin(), v.end());
         ciel::sort_heap(v.begin(), v.end());

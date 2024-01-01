@@ -6,7 +6,7 @@ namespace {
 
 struct BoolLike {
     BoolLike(bool /*unused*/) noexcept {}
-    operator bool() { return true; }
+    explicit operator bool() const noexcept { return true; }
 };
 
 }   // namespace

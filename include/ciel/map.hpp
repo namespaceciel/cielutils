@@ -68,11 +68,11 @@ public:
 
     explicit map(const Allocator& alloc) : tree_(alloc) {}
 
-    template<legacy_input_iterator Iter>
+    template<class Iter>
     map(Iter first, Iter last, const value_compare& c = value_compare(), const allocator_type& alloc = allocator_type())
         : tree_(false_type{}, first, last, c, alloc) {}
 
-    template<legacy_input_iterator Iter>
+    template<class Iter>
     map(Iter first, Iter last, const allocator_type& alloc) : map(first, last, value_compare(), alloc) {}
 
     map(const map& other) : tree_(other.tree_) {}
@@ -223,7 +223,7 @@ public:
         return emplace_hint(pos, std::move(value));
     }
 
-    template<legacy_input_iterator Iter>
+    template<class Iter>
     auto insert(Iter first, Iter last) -> void {
         tree_.range_insert_unique(first, last);
     }

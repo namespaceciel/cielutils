@@ -2,6 +2,7 @@
 #define CIELUTILS_INCLUDE_CIEL_CONFIG_HPP_
 
 #include <cassert>
+#include <initializer_list>
 
 #ifdef __cpp_exceptions
 #define CIEL_HAS_EXCEPTIONS
@@ -44,5 +45,12 @@ NAMESPACE_CIEL_END
 
 #define CIEL_PRECONDITION(cond) assert(cond)
 #define CIEL_POSTCONDITION(cond) assert(cond)
+
+namespace std {
+
+template<class T>
+initializer_list(initializer_list<T>) -> initializer_list<T>;
+
+}   // namespace std
 
 #endif // CIELUTILS_INCLUDE_CIEL_CONFIG_HPP_

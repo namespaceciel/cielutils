@@ -11,6 +11,7 @@ add_executable(cielutils_benchmark
         src/vector_benchmarks.cpp
         src/deque_benchmarks.cpp
         src/set_benchmarks.cpp
+        src/unordered_set_benchmark.cpp
 )
 
 target_link_libraries(cielutils_benchmark cielutils benchmark::benchmark EASTL)

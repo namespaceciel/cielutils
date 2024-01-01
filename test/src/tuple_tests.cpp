@@ -26,8 +26,8 @@ struct ConstructAndAssignCounter {
 TEST(tuple_tests, move_behavior) {
     ConstructAndAssignCounter::move = 0;
 
-    ciel::tuple<ConstructAndAssignCounter, ConstructAndAssignCounter> t5;
-    ciel::tuple<ConstructAndAssignCounter, ConstructAndAssignCounter> t6;
+    ciel::tuple<ConstructAndAssignCounter, ConstructAndAssignCounter> t5{};
+    ciel::tuple<ConstructAndAssignCounter, ConstructAndAssignCounter> t6{};
     t5 = std::move(t6);
     ASSERT_EQ(ConstructAndAssignCounter::move, 2);
 
@@ -36,7 +36,7 @@ TEST(tuple_tests, move_behavior) {
 }
 
 TEST(tuple_tests, constructors) {
-    [[maybe_unused]] const ciel::tuple t0;
+    [[maybe_unused]] constexpr ciel::tuple t0;
     ciel::tuple<int, size_t, char> t1;
     ciel::tuple<int, size_t, char> t2(-1, 10, 'c');
     const ciel::tuple t3(-1, 10UL, 'c');
@@ -58,7 +58,7 @@ TEST(tuple_tests, constructors) {
     t4 = std::move(p1);
     ASSERT_EQ(t4, ciel::tuple(-5, 't'));
 
-    const ciel::tuple t5(std::move(p1));
+    [[maybe_unused]] const ciel::tuple t5(std::move(p1));
 }
 
 TEST(tuple_tests, compare_three_way) {

@@ -45,11 +45,11 @@ public:
 
     explicit set(const allocator_type& alloc) : tree_(alloc) {}
 
-    template<legacy_input_iterator Iter>
+    template<class Iter>
     set(Iter first, Iter last, const value_compare& c = Compare(),
         const allocator_type& alloc = allocator_type()) : tree_(false_type{}, first, last, c, alloc) {}
 
-    template<legacy_input_iterator Iter>
+    template<class Iter>
     set(Iter first, Iter last, const allocator_type& alloc): set(first, last, value_compare(), alloc) {}
 
     set(const set& other) : tree_(other.tree_) {}
@@ -162,7 +162,7 @@ public:
         return emplace_hint(hint, std::move(value));
     }
 
-    template<legacy_input_iterator Iter>
+    template<class Iter>
     auto insert(Iter first, Iter last) -> void {
         tree_.range_insert_unique(first, last);
     }

@@ -17,7 +17,7 @@ bool can_throw;     // set this false to renew state_holder
 
 void may_throw() {
     if (can_throw && g() % 5 == 0) {
-        CIEL_THROW(1);
+        CIEL_THROW 1;
     }
 }
 
@@ -79,7 +79,7 @@ struct NothrowMoveStruct {
         return *this;
     }
 
-    operator size_t() const noexcept {
+    explicit operator size_t() const noexcept {
         return ptr ? *ptr : 1234;
     }
 
