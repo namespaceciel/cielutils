@@ -322,8 +322,8 @@ private:
     }
 
     // Check which endpoint is pos close to
-    template<class Arg>
-    auto insert_n(iterator pos, const size_type count, Arg&& arg) -> iterator {
+    template<class... Args>
+    auto insert_n(iterator pos, const size_type count, Args&& ... args) -> iterator {
         if (count == 0) [[unlikely]] {
             return pos;
         }
@@ -336,7 +336,7 @@ private:
 
             CIEL_PRECONDITION(front_spare() >= count);
 
-            alloc_range_construct_n(begin() -= count, count, std::forward<Arg>(arg));
+            alloc_range_construct_n(begin() -= count, count, std::forward<Args>(args)...);
 
             iterator old_begin = begin();
             begin_offset_ -= count;
@@ -352,7 +352,7 @@ private:
 
             iterator new_pos = begin() + pos_index;
             iterator old_end = end();
-            alloc_range_construct_n(end(), count, std::forward<Arg>(arg));
+            alloc_range_construct_n(end(), count, std::forward<Args>(args)...);
 
             rotate(new_pos, old_end, end());
             return new_pos;
@@ -861,11 +861,13 @@ public:
             emplace_back(std::forward<Args>(args)...);
             return --end();
         }
+
         if (pos == begin()) {
             emplace_front(std::forward<Args>(args)...);
             return begin();
         }
-        return insert_n(pos, 1, value_type(std::forward<Args>(args)...));
+
+        return insert_n(pos, 1, std::forward<Args>(args)...);
     }
 
     auto erase(iterator pos) noexcept -> iterator {

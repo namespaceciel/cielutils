@@ -1,5 +1,6 @@
 #include <gtest/gtest.h>
 
+#include <ciel/circular_buffer.hpp>
 #include <ciel/deque.hpp>
 #include <ciel/forward_list.hpp>
 #include <ciel/list.hpp>
@@ -331,6 +332,61 @@ TEST(exception_safety_tests, split_buffer_basic) {
     // Throw lots of exceptions and use valgrind checking for memory leaks
 
     ciel::split_buffer<NothrowMoveStruct> v;
+    can_throw = true;
+
+    for (size_t i = 0; i < 10000; ++i) {
+        // Use random numbers to insert or erase at any position in v: v.begin() + g() % ciel::max<size_t>(v.size(), 1)
+
+        BASIC_TEST_CASE(v.emplace_back(1));
+
+        BASIC_TEST_CASE(v.assign(il));
+
+        BASIC_TEST_CASE(v.resize(g() % (v.size() * 2 + 1), 5));
+
+        BASIC_TEST_CASE(v.insert(v.begin() + g() % ciel::max<size_t>(v.size(), 1), 10, 66));
+
+        BASIC_TEST_CASE(v.assign(10, 20));
+
+        BASIC_TEST_CASE(v.emplace_front(2));
+
+        BASIC_TEST_CASE(v.erase(v.begin() + g() % ciel::max<size_t>(v.size(), 1),
+                                v.begin() + g() % ciel::max<size_t>(v.size(), 1)));
+
+        BASIC_TEST_CASE(v.insert(v.begin() + g() % ciel::max<size_t>(v.size(), 1), il));
+    }
+}
+
+TEST(exception_safety_tests, circular_buffer_strong) {
+    // These circular_buffer functions provide strong exception safety:
+    // emplace_front/back, push_front/back, insert, emplace, resize, shrink_to_fit
+
+    ciel::circular_buffer<NothrowMoveStruct> v;
+    ciel::circular_buffer<NothrowMoveStruct> state_holder;
+
+    for (size_t i = 0; i < 2000; ++i) {
+
+        STRONG_TEST_CASE(v.emplace(v.end(), 1));
+
+        STRONG_TEST_CASE(v.insert(v.begin() + g() % ciel::max<size_t>(v.size(), 1), 10, 66));
+
+        STRONG_TEST_CASE(v.emplace_back(2));
+
+        STRONG_TEST_CASE(v.resize(g() % (v.size() * 2 + 1), 5));
+
+        STRONG_TEST_CASE(v.emplace(v.begin() + g() % ciel::max<size_t>(v.size(), 1), 3));
+
+        STRONG_TEST_CASE(v.shrink_to_fit());
+
+        STRONG_TEST_CASE(v.insert(v.begin() + g() % ciel::max<size_t>(v.size(), 1), il));
+
+        STRONG_TEST_CASE(v.emplace_front(4));
+    }
+}
+
+TEST(exception_safety_tests, circular_buffer_basic) {
+    // Throw lots of exceptions and use valgrind checking for memory leaks
+
+    ciel::circular_buffer<NothrowMoveStruct> v;
     can_throw = true;
 
     for (size_t i = 0; i < 10000; ++i) {

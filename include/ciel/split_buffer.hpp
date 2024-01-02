@@ -281,8 +281,8 @@ private:
         end_cap_ = begin_cap_ + new_allocation.count;
     }
 
-    template<class Arg>
-    constexpr auto insert_n(iterator pos, const size_type count, Arg&& arg) -> iterator {
+    template<class... Args>
+    constexpr auto insert_n(iterator pos, const size_type count, Args&& ... args) -> iterator {
         if (count == 0) [[unlikely]] {
             return pos;
         }
@@ -291,7 +291,7 @@ private:
                 (distance(begin(), pos) < distance(pos, end()) || back_spare() < count)) {
             // move left half to left
 
-            alloc_range_construct_n(begin_ - count, count, std::forward<Arg>(arg));
+            alloc_range_construct_n(begin_ - count, count, std::forward<Args>(args)...);
 
             iterator old_begin = begin();
             begin_ -= count;
@@ -308,7 +308,7 @@ private:
 
         if (back_spare() >= count) {    // move right half to right
             iterator old_end = end();
-            end_ = alloc_range_construct_n(end_, count, std::forward<Arg>(arg));
+            end_ = alloc_range_construct_n(end_, count, std::forward<Args>(args)...);
             rotate(pos, old_end, end());
             return pos;
         }
@@ -327,7 +327,7 @@ private:
         pointer new_pos = new_start + idx;
 
         CIEL_TRY {
-            alloc_range_construct_n(new_pos, count, std::forward<Arg>(arg));
+            alloc_range_construct_n(new_pos, count, std::forward<Args>(args)...);
         } CIEL_CATCH (...) {
             alloc_traits::deallocate(allocator_, new_start, new_cap);
             CIEL_THROW;
@@ -362,6 +362,9 @@ private:
 
                 // Prevent exceptions throwing and double free in destructor when asking for memory
                 begin_cap_ = nullptr;
+                end_cap_ = nullptr;
+                begin_ = nullptr;
+                end_ = nullptr;
             }
             begin_cap_ = alloc_traits::allocate(allocator_, cap);
             end_cap_ = begin_cap_ + cap;
@@ -377,7 +380,8 @@ public:
     constexpr explicit split_buffer(const allocator_type& alloc) noexcept
         : begin_cap_(nullptr), begin_(nullptr), end_(nullptr), end_cap_(nullptr), allocator_(alloc) {}
 
-    constexpr split_buffer(const size_type count, const value_type& value, const allocator_type& alloc = allocator_type())
+    constexpr split_buffer(const size_type count, const value_type& value,
+                           const allocator_type& alloc = allocator_type())
         : split_buffer(alloc) {
         if (count > 0) [[likely]] {
             begin_cap_ = alloc_traits::allocate(allocator_, count);
@@ -775,9 +779,11 @@ public:
         if (front_spare() == 0 && back_spare() == 0) [[unlikely]] {
             return;
         }
+
         if (size() > 0) {
             pointer new_start = alloc_traits::allocate(allocator_, size());
             reserve_to({new_start, size()});
+
         } else if (begin_cap_) {
             alloc_traits::deallocate(allocator_, begin_cap_, capacity());
             begin_cap_ = nullptr;
@@ -808,7 +814,7 @@ public:
         requires is_exactly_input_iterator<Iter>::value
     constexpr auto insert(iterator pos, Iter first, Iter last) -> iterator {
         // record these index because it may reallocate
-        auto pos_index = pos - begin();
+        const auto pos_index = pos - begin();
         const size_type old_size = size();
 
         CIEL_TRY {
@@ -835,7 +841,7 @@ public:
 
         if (front_spare() >= static_cast<size_type>(count) &&
                 (distance(begin(), pos) < distance(pos, end()) ||
-                 back_spare() < static_cast<size_type>(count))) {
+                back_spare() < static_cast<size_type>(count))) {
             // move left half to left
 
             alloc_range_construct(begin_ - count, first, last);
@@ -903,15 +909,17 @@ public:
 
     template<class... Args>
     constexpr auto emplace(iterator pos, Args&& ... args) -> iterator {
-        if (pos == begin()) {
-            emplace_front(std::forward<Args>(args)...);
-            return begin();
-        }
         if (pos == end()) {
             emplace_back(std::forward<Args>(args)...);
             return iterator(end_ - 1);    // There is possiblity of expansion, don't return iterator(pos)
         }
-        return insert_n(pos, 1, value_type(std::forward<Args>(args)...));
+
+        if (pos == begin()) {
+            emplace_front(std::forward<Args>(args)...);
+            return begin();
+        }
+
+        return insert_n(pos, 1, std::forward<Args>(args)...);
     }
 
     constexpr auto erase(iterator pos) noexcept -> iterator {
@@ -931,12 +939,12 @@ public:
         if (begin_first_distance < distance(last, end())) {
             pointer old_begin = begin_;
 
-            begin_ = to_address(move_backward(begin(), first, last));
+            begin_ = move_backward(begin(), first, last).base();
 
             alloc_range_destroy(old_begin, begin_);
 
         } else {
-            pointer new_end = to_address(move(last, end(), first));
+            pointer new_end = move(last, end(), first).base();
 
             end_ = alloc_range_destroy(new_end, end_);
         }
@@ -1043,6 +1051,7 @@ public:
             end_ = alloc_range_destroy(begin_ + count, end_);
             return;
         }
+
         reserve_back_spare(count - size());
         end_ = alloc_range_construct_n(end_, count - size());
     }
@@ -1052,6 +1061,7 @@ public:
             end_ = alloc_range_destroy(begin_ + count, end_);
             return;
         }
+
         reserve_back_spare(count - size());
         end_ = alloc_range_construct_n(end_, count - size(), value);
     }

@@ -22,9 +22,9 @@
 #define CIEL_HAS_RTTI
 #endif
 
-#define NAMESPACE_CIEL_BEGIN namespace ciel { inline namespace ver1 {
+#define NAMESPACE_CIEL_BEGIN namespace ciel {
 
-#define NAMESPACE_CIEL_END }}
+#define NAMESPACE_CIEL_END }
 
 NAMESPACE_CIEL_BEGIN
 

@@ -154,8 +154,8 @@ private:
         end_cap_ = begin_ + new_allocation.count;
     }
 
-    template<class Arg>
-    constexpr auto insert_n(iterator pos, const size_type count, Arg&& arg) -> iterator {
+    template<class... Args>
+    constexpr auto insert_n(iterator pos, const size_type count, Args&& ... args) -> iterator {
         if (count == 0) [[unlikely]] {
             return pos;
         }
@@ -174,7 +174,7 @@ private:
             pointer new_pos = new_start + idx;
 
             CIEL_TRY {
-                alloc_range_construct_n(new_pos, count, std::forward<Arg>(arg));
+                alloc_range_construct_n(new_pos, count, std::forward<Args>(args)...);
             } CIEL_CATCH (...) {
                 alloc_traits::deallocate(allocator_, new_start, new_cap);
                 CIEL_THROW;
@@ -197,7 +197,7 @@ private:
             // When capacity is enough, we construct them all at end and rotate them to the right place
 
             iterator old_end = end();
-            end_ = alloc_range_construct_n(end_, count, std::forward<Arg>(arg));
+            end_ = alloc_range_construct_n(end_, count, std::forward<Args>(args)...);
             rotate(pos, old_end, end());
             return pos;
         }
@@ -208,7 +208,11 @@ private:
         if (capacity() < cap) {
             if (begin_) {
                 alloc_traits::deallocate(allocator_, begin_, capacity());
-                begin_ = nullptr;    // Prevent exceptions throwing and double free in destructor when asking for memory
+
+                // Prevent exceptions throwing and double free in destructor when asking for memory
+                begin_ = nullptr;
+                end_ = nullptr;
+                end_cap_ = nullptr;
             }
             begin_ = alloc_traits::allocate(allocator_, cap);
             end_cap_ = begin_ + cap;
@@ -576,9 +580,11 @@ public:
         if (size() == capacity()) [[unlikely]] {
             return;
         }
+
         if (size() > 0) {
             pointer new_start = alloc_traits::allocate(allocator_, size());
             reserve_to({new_start, size()});
+
         } else {
             alloc_traits::deallocate(allocator_, begin_, capacity());
             begin_ = nullptr;
@@ -608,7 +614,7 @@ public:
         requires is_exactly_input_iterator<Iter>::value
     constexpr auto insert(iterator pos, Iter first, Iter last) -> iterator {
         // record these index because it may reallocate
-        auto pos_index = pos - begin();
+        const auto pos_index = pos - begin();
         const size_type old_size = size();
 
         CIEL_TRY {
@@ -681,7 +687,8 @@ public:
             emplace_back(std::forward<Args>(args)...);
             return iterator(end_ - 1);    // There is possiblity of expansion, don't return pos
         }
-        return insert_n(pos, 1, value_type(std::forward<Args>(args)...));
+
+        return insert_n(pos, 1, std::forward<Args>(args)...);
     }
 
     constexpr auto erase(iterator pos) noexcept -> iterator {
@@ -745,6 +752,7 @@ public:
             end_ = alloc_range_destroy(begin_ + count, end_);
             return;
         }
+
         if (count > capacity()) {
             reserve(count);
         }
@@ -756,6 +764,7 @@ public:
             end_ = alloc_range_destroy(begin_ + count, end_);
             return;
         }
+
         if (count > capacity()) {
             reserve(count);
         }

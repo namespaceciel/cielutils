@@ -10,6 +10,7 @@ add_executable(cielutils_test
         src/algorithm_tests.cpp
         src/any_tests.cpp
         src/array_tests.cpp
+        src/circular_buffer_tests.cpp
         src/concepts_tests.cpp
         src/deque_tests.cpp
         src/forward_list_tests.cpp
