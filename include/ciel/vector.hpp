@@ -265,8 +265,10 @@ public:
                 ++first;
             }
         } CIEL_CATCH (...) {
-            clear();
-            alloc_traits::deallocate(allocator_, begin_, capacity());
+            if (begin_) {
+                clear();
+                alloc_traits::deallocate(allocator_, begin_, capacity());
+            }
             CIEL_THROW;
         }
     }

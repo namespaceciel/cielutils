@@ -141,18 +141,18 @@ struct iterator_traits<T*> {
 };
 
 // The following serve for containers
-template<class Iter, class = void_t<typename iterator_traits<Iter>::iterator_category>>
+template<class Iter, class = void>
 struct is_exactly_input_iterator : false_type {};
 
 template<class Iter>
-struct is_exactly_input_iterator<Iter, void>
+struct is_exactly_input_iterator<Iter, void_t<typename iterator_traits<Iter>::iterator_category>>
     : is_same<typename iterator_traits<Iter>::iterator_category, input_iterator_tag> {};
 
-template<class Iter, class = void_t<typename iterator_traits<Iter>::iterator_category>>
+template<class Iter, class = void>
 struct is_forward_iterator : false_type {};
 
 template<class Iter>
-struct is_forward_iterator<Iter, void>
+struct is_forward_iterator<Iter, void_t<typename iterator_traits<Iter>::iterator_category>>
     : is_convertible<typename iterator_traits<Iter>::iterator_category, forward_iterator_tag> {};
 
 NAMESPACE_CIEL_END
